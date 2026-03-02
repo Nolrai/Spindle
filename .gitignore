@@ -1,0 +1,29 @@
+# Stack build artifacts
+.stack-work/
+
+# Cabal build artifacts
+dist/
+dist-newstyle/
+cabal.project.local
+cabal.project.local~
+*.cabal-sandbox/
+*.ghc.environment.*
+
+# Haskell REPL history
+.ghci
+.ghc.environment.*
+
+# Binary files
+*.hi
+*.o
+*.out
+*.so
+*.dyn_o
+*.dyn_hi
+
+# Editor/OS files
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/
