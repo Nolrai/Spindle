@@ -9,12 +9,12 @@ import Data.Void
 import Control.Monad.Combinators.Expr
 import Spindle.Types
 import Data.Functor
-import Data.Text
+import Data.Text hiding (empty)
 
 type Parser = Parsec Void Text
 
 spaces :: Parser ()
-spaces = L.space space1 mempty mempty
+spaces = L.space space1 empty empty
 
 symbol :: Text -> Parser Text
 symbol = L.symbol spaces
@@ -32,22 +32,20 @@ expr :: Parser Expr
 expr = makeExprParser term table <?> "expression"
 
 term :: Parser Expr
-term = parens (try expr <|> cond <|> letExpr) <|> decimal <?> "term"
+term =
+  parens (try expr)
+  <|> letTerm
+  <|> Var <$> identifier
+  <|> decimal <?> "term"
+
+letTerm :: Parser Expr
+letTerm = Let
+  <$> (symbol "let" *> identifier)
+  <*> (symbol ":=" *> expr)
+  <*> (symbol "in" *> expr)
 
 identifier :: Parser Text
 identifier = lexeme ((:) <$> letterChar <*> many alphaNumChar) <&> pack
-
-letExpr :: Parser Expr
-letExpr = do
-  _ <- symbol "let"
-  var <- identifier
-  _ <- symbol "="
-  val <- expr
-  _ <- symbol "in"
-  Let var val <$> expr
-
-cond :: Parser Expr
-cond = Cond <$> (expr <* symbol "?") <*> (expr <* symbol ":") <*> expr <?> "conditional expression"
 
 table :: [[Operator Parser Expr]]
 table = [ [ prefix  "-"  (UnOp Neg)
