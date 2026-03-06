@@ -4,7 +4,6 @@ module Spec.Spindle.Types (typesTests) where
 import Spindle.Types
 import Test.Tasty
 import Test.Tasty.HUnit
-import Data.Text (Text)
 
 typesTests :: TestTree
 typesTests = testGroup "Types Tests"

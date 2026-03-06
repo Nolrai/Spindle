@@ -2,12 +2,19 @@ module Spindle.Types where
 
 import Data.Text
 
+data NormalForm
+  = NLit Int
+  | NLam [Text] Expr
+  deriving (Show, Eq)
+
 data Expr
   = Lit Int
   | BiOp BiOp Expr Expr
   | UnOp UnOp Expr
   | Cond Expr Expr Expr
   | Let Text Expr Expr
+  | App Expr [Expr]
+  | Lam [Text] Expr
   | Var Text
   deriving (Show, Eq)
 
