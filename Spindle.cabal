@@ -85,6 +85,7 @@ test-suite Spindle-test
       Spec.Spindle.Parser
       Spec.Spindle.Eval
       Spec.Spindle.Types
+      Utils
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

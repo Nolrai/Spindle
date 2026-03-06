@@ -17,13 +17,13 @@ spaces :: Parser ()
 spaces = L.space space1 empty empty
 
 symbol :: Text -> Parser Text
-symbol = L.symbol spaces
+symbol s = L.symbol spaces s <?> unpack s
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaces
 
 decimal :: Parser Expr
-decimal = Lit <$> lexeme L.decimal
+decimal = Lit <$> lexeme L.decimal <?> "decimal number"
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -36,19 +36,29 @@ term =
   parens (try expr)
   <|> letTerm
   <|> Var <$> identifier
-  <|> decimal <?> "term"
+  <|> lamTerm
+  <|> decimal
+  <?> "term"
+
+lamTerm :: Parser Expr
+lamTerm = Lam
+    <$> (symbol "\\" *> many identifier)
+    <*> (symbol "=>" *> expr)
+    <?> "lambda term"
 
 letTerm :: Parser Expr
 letTerm = Let
   <$> (symbol "let" *> identifier)
   <*> (symbol ":=" *> expr)
   <*> (symbol "in" *> expr)
+  <?> "let term"
 
 identifier :: Parser Text
 identifier = lexeme ((:) <$> letterChar <*> many alphaNumChar) <&> pack
 
 table :: [[Operator Parser Expr]]
-table = [ [ prefix  "-"  (UnOp Neg)
+table = [ [ binary "#" toApp ] -- application has the highest precedence
+        , [ prefix  "-"  (UnOp Neg)
           , prefix  "+"  id ]
         , [ postfix "++" (UnOp Inc)
           , postfix "--" (UnOp Dec) ]
@@ -58,6 +68,10 @@ table = [ [ prefix  "-"  (UnOp Neg)
           , binary  "-"  (BiOp Sub) ]
         , [ ternary "?" ":" Cond ]
         ]
+
+toApp :: Expr -> Expr -> Expr
+toApp (App f args) arg = App f (args ++ [arg])
+toApp f arg = App f [arg]
 
 ternary :: Text -> Text -> (Expr -> Expr -> Expr -> Expr) -> Operator Parser Expr
 ternary q c f = TernR ((f <$ symbol c) <$ symbol q)
