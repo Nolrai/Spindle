@@ -19,6 +19,7 @@ evaluaterTests = testGroup "evaluator Tests"
   , lamAppTests
   ]
 
+-- | Helper function to create an eval test case from an input string and expected output
 evalTestCase :: String -> Text -> Either Err NormalForm -> TestTree
 evalTestCase name input expected =
   testCase name $
@@ -38,6 +39,7 @@ simpleConstructorTests = testGroup "expr constructor tests"
   , evalTestCase "decrement" "4--" (Right (NLit 3))
   ]
 
+-- | Tests for operator precedence, to make sure that the correct order of operations is being followed
 precedenceTests :: TestTree
 precedenceTests = testGroup "precedence tests"
   [ evalTestCase "precedence 1" "1 + 2 * 3" (Right (NLit 7))
@@ -55,6 +57,7 @@ precedenceTests = testGroup "precedence tests"
   , evalTestCase "chained operations" "1 + 2 + 3 + 4" (Right (NLit 10))
   ]
 
+-- | Tests for conditional expressions, to make sure that the correct branch is being evaluated based on the condition
 evalCondTests :: TestTree
 evalCondTests = testGroup "conditional tests"
   [ evalTestCase "conditional true branch" "(1 ? 2 : 3)" (Right (NLit 2))
@@ -64,6 +67,7 @@ evalCondTests = testGroup "conditional tests"
   , evalTestCase "conditional with nested expressions" "(1 ? (2 + 3) * 4 : 5 - 6)" (Right (NLit 20))
   ]
 
+-- | Tests for lambda application, to make sure that closures are being applied correctly and that the correct number of arguments are being passed
 lamAppTests :: TestTree
 lamAppTests = testGroup "lambda application tests"
   [ evalTestCase "simple lambda application" "(\\ x => x + 1) # 5" (Right (NLit 6))
@@ -95,6 +99,7 @@ alphaRenamingText3 =
   <> "let f := (\\u => a) in"
   <> "(((\\x => \\a => x) # f) # 99) # 0"
 
+-- | Tests for let bindings, to make sure that variables are being bound correctly and that shadowing is working as expected
 letTests :: TestTree
 letTests = testGroup "let binding tests"
   [ evalTestCase "eval let binding" "let v := 2 in v" (Right (NLit 2))
