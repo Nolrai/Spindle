@@ -53,12 +53,19 @@ toNormal :: Eval m => Expr -> m NormalForm
 toNormal focus = do
   tell ["Evaluating: " <> Text.show focus]
   case focus of
+    -- For a lambda, we capture the current environment and return a closure. This allows us to support first-class functions and closures.
     Lam names body -> asks $ \env -> NClosure env names body
+
+    -- For a literal, we just return it as a normal form.
     Lit n -> return (NLit n)
+
+    -- For an application, we first evaluate the function and the arguments to normal form, and then apply the function to the arguments. See `evalApp` for the application logic.
     App fun args -> do
       funVal <- toNormal fun
       argValues <- mapM toNormal args
       evalApp funVal argValues
+
+    -- For a variable, we look it up in the environment. If it's not found, we throw an error. If it is found, we return the value.
     Var v -> do
       tell ["Looking up variable: " <> v]
       env <- ask
@@ -66,6 +73,7 @@ toNormal focus = do
         Nothing -> throwError $ VarNotFound v (Map.keysSet env)
         Just e -> return e
 
+    -- For a binary operation, we first evaluate the operands to normal form, and then apply the operation. If the operands are not literals, we throw an error.
     BiOp op e1 e2 ->
       tell ["Evaluating binary operation: " <> Text.show op] >>
       let f = case op of
@@ -78,6 +86,7 @@ toNormal focus = do
         e2' <- matchToLit =<< toNormal e2
         return $ NLit (f e1' e2')
 
+    -- For a unary operation, we first evaluate the operand to normal form, and then apply the operation. If the operand is not a literal, we throw an error.
     UnOp op e -> do
       tell ["Evaluating unary operation: " <> Text.show op]
       let f = case op of
@@ -87,17 +96,20 @@ toNormal focus = do
       e' <- matchToLit =<< toNormal e
       return $ NLit (f e')
 
+    -- For a conditional, we first evaluate the condition to normal form, and then check if it's a non-zero literal. If it is, we evaluate the true branch; otherwise, we evaluate the false branch. If the condition is not a literal, we throw an error.
     Cond c t f -> do
       tell ["Evaluating conditional expression"]
       c' <- matchToLit =<< toNormal c
       if c' /= 0 then toNormal t else toNormal f
 
+    -- For a let expression, we first evaluate the value to normal form, and then extend the environment with the new variable binding before evaluating the body. This allows us to support local variable bindings.
     Let var val body ->
       do
         val' <- toNormal val
         tell ["Binding variable: " <> var <> " = " <> Text.show val']
         local (Map.insert var val') (toNormal body)
 
+-- | Evaluates a function application. It takes a function in normal form (which should be a closure) and a list of argument values in normal form, and applies the function to the arguments. It handles partial application by returning a new closure if not all parameters are provided, and it handles extra arguments by evaluating the function body to normal form and then applying the remaining arguments.
 evalApp :: Eval m => NormalForm -> [NormalForm] -> m NormalForm
 evalApp fun argValues = do
   (env, params, body) <- matchClosure fun
@@ -123,15 +135,19 @@ evalApp fun argValues = do
     (_:_, _:_ ) ->
       error "Impossible"
 
-getErrors :: (MonadReader (Map Text NormalForm) m, MonadWriter Log m) =>
-  Expr -> m (Either Err NormalForm)
-getErrors e = runExceptT (toNormal e)
+-- | A helper function to evaluate an expression in an empty environment and get either the result or the error.
+eval :: Expr -> Either Err NormalForm
+eval = fst . runEval Map.empty
 
-getLogs :: (MonadReader (Map Text NormalForm) m) => Expr -> m (Either Err NormalForm, Log)
-getLogs e = runWriterT (getErrors e)
+-- These three functions each strip away one layer of the Eval monad stack. `runEval` runs the entire Eval monad stack, `getLogs` runs the Writer layer to get the logs, and `getErrors` runs the Except layer to get either the result or the error.
 
 runEval :: Map Text NormalForm -> Expr -> (Either Err NormalForm, Log)
 runEval env e = runReader (getLogs e) env
 
-eval :: Expr -> Either Err NormalForm
-eval = fst . runEval mempty
+getLogs :: (MonadReader (Map Text NormalForm) m) => Expr -> m (Either Err NormalForm, Log)
+getLogs e = runWriterT (getErrors e)
+
+getErrors :: (MonadReader (Map Text NormalForm) m, MonadWriter Log m) =>
+  Expr -> m (Either Err NormalForm)
+getErrors e = runExceptT (toNormal e)
+
