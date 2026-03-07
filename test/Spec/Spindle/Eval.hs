@@ -7,6 +7,8 @@ import Test.Tasty.HUnit
 import Spec.Spindle.Parser (myParser)
 import Spindle.Types
 import Utils
+import Data.Text (Text)
+import GHC.IsList (fromList)
 
 evaluaterTests :: TestTree
 evaluaterTests = testGroup "evaluator Tests"
@@ -14,85 +16,89 @@ evaluaterTests = testGroup "evaluator Tests"
   , precedenceTests
   , evalCondTests
   , letTests
+  , lamAppTests
   ]
+
+evalTestCase :: String -> Text -> Either Err NormalForm -> TestTree
+evalTestCase name input expected =
+  testCase name $
+    (eval <$> myParse myParser name input) ?= expected
 
 -- | Tests for simple expression constructors, to make sure they are being evaluated correctly
 simpleConstructorTests :: TestTree
 simpleConstructorTests = testGroup "expr constructor tests"
-  [ testCase "eval literal" $
-    (eval <$> myParse myParser "42" "42") ?= pure (NLit 42)
-
-  , testCase "eval addition" $
-    (eval <$> myParse myParser "addition" "1 + 2") ?= pure (NLit 3)
-  , testCase "eval multiplication" $
-    (eval <$> myParse myParser "multiplication" "3 * 4") ?= pure (NLit 12)
-  , testCase "eval division" $
-    (eval <$> myParse myParser "division" "8 / 2") ?= pure (NLit 4)
-  , testCase "eval division by zero" $
-    (eval <$> myParse myParser "division by zero" "8 / 0") ?= pure (NLit 0)
-  , testCase "eval subtraction" $
-    (eval <$> myParse myParser "subtraction" "5 - 2") ?= pure (NLit 3)
-
-  , testCase "eval unary minus" $
-    (eval <$> myParse myParser "unary minus" "-5") ?= pure (NLit (-5))
-  , testCase "eval increment" $
-    (eval <$> myParse myParser "increment" "3++") ?= pure (NLit 4)
-  , testCase "eval decrement" $
-    (eval <$> myParse myParser "decrement" "4--") ?= pure (NLit 3)
+  [ evalTestCase "literal" "42" (Right (NLit 42))
+  , evalTestCase "addition" "1 + 2" (Right (NLit 3))
+  , evalTestCase "multiplication" "3 * 4" (Right (NLit 12))
+  , evalTestCase "division" "8 / 2" (Right (NLit 4))
+  , evalTestCase "division by zero" "8 / 0" (Right (NLit 0))
+  , evalTestCase "subtraction" "5 - 2" (Right (NLit 3))
+  , evalTestCase "unary minus" "-5" (Right (NLit (-5)))
+  , evalTestCase "increment" "3++" (Right (NLit 4))
+  , evalTestCase "decrement" "4--" (Right (NLit 3))
   ]
 
 precedenceTests :: TestTree
 precedenceTests = testGroup "precedence tests"
-  [ testCase "eval precedence 1" $
-    (eval <$> myParse myParser "precedence 1" "1 + 2 * 3") ?= pure (NLit 7)
-  , testCase "eval precedence 2" $
-    (eval <$> myParse myParser "precedence 2" "4 * 5 - 6") ?= pure (NLit 14)
-  , testCase "eval precedence 3" $
-    (eval <$> myParse myParser "precedence 3" "8 / 4 + 2") ?= pure (NLit 4)
-  , testCase "eval precedence 4" $
-    (eval <$> myParse myParser "precedence 4" "3 + 4 * 2 - 1") ?= pure (NLit 10)
-  , testCase "eval precedence 5" $
-    (eval <$> myParse myParser "precedence 5" "6 - 2 * 3 + 4") ?= pure (NLit 4)
-  , testCase "eval precedence 6" $
-    (eval <$> myParse myParser "precedence 6" "8 / 2 * 3") ?= pure (NLit 12)
-  , testCase "eval precedence 7" $
-    (eval <$> myParse myParser "precedence 7" "5 + 6 - 7 * 8 / 4") ?= pure (NLit (-3))
-  , testCase "eval precedence 8" $
-    (eval <$> myParse myParser "precedence 8" "2 * 3 + 4 / 2 - 1") ?= pure (NLit 7)
-  , testCase "eval precedence" $
-    (eval <$> myParse myParser "precedence" "2 + 3 * 4") ?= pure (NLit 14)
-  , testCase "eval precedence with parens" $
-    (eval <$> myParse myParser "precedence with parens" "(2 + 3) * 4") ?= pure (NLit 20)
-  , testCase "eval division and subtraction" $
-    (eval <$> myParse myParser "division and subtraction" "8 / 2 - 1") ?= pure (NLit 3)
-  , testCase "eval complex nesting" $
-    (eval <$> myParse myParser "complex nesting" "1 + (2 * (3 + 4))") ?= pure (NLit 15)
-  , testCase "eval chained operations" $
-    (eval <$> myParse myParser "chained operations" "1 + 2 + 3 + 4") ?= pure (NLit 10)
+  [ evalTestCase "precedence 1" "1 + 2 * 3" (Right (NLit 7))
+  , evalTestCase "precedence 2" "4 * 5 - 6" (Right (NLit 14))
+  , evalTestCase "precedence 3" "8 / 4 + 2" (Right (NLit 4))
+  , evalTestCase "precedence 4" "3 + 4 * 2 - 1" (Right (NLit 10))
+  , evalTestCase "precedence 5" "6 - 2 * 3 + 4" (Right (NLit 4))
+  , evalTestCase "precedence 6" "8 / 2 * 3" (Right (NLit 12))
+  , evalTestCase "precedence 7" "5 + 6 - 7 * 8 / 4" (Right (NLit (-3)))
+  , evalTestCase "precedence 8" "2 * 3 + 4 / 2 - 1" (Right (NLit 7))
+  , evalTestCase "precedence" "2 + 3 * 4" (Right (NLit 14))
+  , evalTestCase "precedence with parens" "(2 + 3) * 4" (Right (NLit 20))
+  , evalTestCase "division and subtraction" "8 / 2 - 1" (Right (NLit 3))
+  , evalTestCase "complex nesting" "1 + (2 * (3 + 4))" (Right (NLit 15))
+  , evalTestCase "chained operations" "1 + 2 + 3 + 4" (Right (NLit 10))
   ]
 
 evalCondTests :: TestTree
 evalCondTests = testGroup "conditional tests"
-  [ testCase "eval conditional true branch" $
-    (eval <$> myParse myParser "conditional true branch" "(1 ? 2 : 3)") ?= pure (NLit 2)
-  , testCase "eval conditional false branch" $
-    (eval <$> myParse myParser "conditional false branch" "(0 ? 2 : 3)") ?= pure (NLit 3)
-  , testCase "eval nested conditional" $
-    (eval <$> myParse myParser "nested conditional" "(1 ? (0 ? 4 : 5) : 3)") ?= pure (NLit 5)
-  , testCase "eval conditional with expression branches" $
-    (eval <$> myParse myParser "conditional with expression branches" "(1 ? 2 + 3 : 4 * 5)") ?= pure (NLit 5)
-  , testCase "eval conditional with nested expressions" $
-    (eval <$> myParse myParser "conditional with nested expressions" "(1 ? (2 + 3) * 4 : 5 - 6)") ?= pure (NLit 20)
+  [ evalTestCase "conditional true branch" "(1 ? 2 : 3)" (Right (NLit 2))
+  , evalTestCase "conditional false branch" "(0 ? 2 : 3)" (Right (NLit 3))
+  , evalTestCase "nested conditional" "(1 ? (0 ? 4 : 5) : 3)" (Right (NLit 5))
+  , evalTestCase "conditional with expression branches" "(1 ? 2 + 3 : 4 * 5)" (Right (NLit 5))
+  , evalTestCase "conditional with nested expressions" "(1 ? (2 + 3) * 4 : 5 - 6)" (Right (NLit 20))
   ]
+
+lamAppTests :: TestTree
+lamAppTests = testGroup "lambda application tests"
+  [ evalTestCase "simple lambda application" "(\\ x => x + 1) # 5" (Right (NLit 6))
+  , evalTestCase "lambda application with multiple parameters" "(\\ x y => x * y) # 3 # 4" (Right (NLit 12))
+  , evalTestCase "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" (Right (NLit 5))
+  , evalTestCase "lambda application with excess arguments" "(\\ x => x + 1) # 3 # 6" (Left (NotLambda (NLit 4)))
+  , evalTestCase "lambda application with excess parameters" "(\\ x y => x + y) # 2" (Right (NClosure (fromList [("x", NLit 2)]) ["y"] (BiOp Add (Var "x") (Var "y"))))
+  , evalTestCase "closure captures defining environment" alphaRenamingText1 (Right (NLit 42))
+  , evalTestCase "inner binder does not capture closure variable" alphaRenamingText2 (Right (NLit 42))
+  , evalTestCase "later shadowing does not affect closure variable" alphaRenamingText3 (Right (NLit 5))
+  ]
+
+alphaRenamingText1 :: Text
+alphaRenamingText1 =
+  "let z := 42 in"
+  <> "let y := (\\w => z) in"
+  <> "let f := ((\\x => \\z => x) # y) in"
+  <> "(f # 0) # 999"
+
+alphaRenamingText2 :: Text
+alphaRenamingText2 =
+  "let z := 42 in"
+  <> "let y := (\\w => z) in"
+  <> "(\\x => \\z => x) # y # 0 # 999"
+
+alphaRenamingText3 :: Text
+alphaRenamingText3 =
+  "let a := 5 in"
+  <> "let f := (\\u => a) in"
+  <> "(((\\x => \\a => x) # f) # 99) # 0"
 
 letTests :: TestTree
 letTests = testGroup "let binding tests"
-  [ testCase "eval let binding" $
-    (eval <$> myParse myParser "let binding" "let v := 2 in v") ?= pure (NLit 2)
-  , testCase "eval let binding with expression" $
-    (eval <$> myParse myParser "let binding with expression" "let x := 1 + 2 in x + 3") ?= pure (NLit 6)
-  , testCase "eval nested let bindings" $
-    (eval <$> myParse myParser "nested let bindings" "let x := 2 in let y := x + 3 in y * 2") ?= pure (NLit 10)
-  , testCase "eval let shadowing" $
-    (eval <$> myParse myParser "let shadowing" "let x := 1 in let x := 2 in x + x") ?= pure (NLit 4)
+  [ evalTestCase "eval let binding" "let v := 2 in v" (Right (NLit 2))
+  , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NLit 6))
+  , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NLit 10))
+  , evalTestCase "eval let shadowing" "let x := 1 in let x := 2 in x + x" (Right (NLit 4))
   ]

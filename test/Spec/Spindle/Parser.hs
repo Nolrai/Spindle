@@ -4,7 +4,6 @@ module Spec.Spindle.Parser (parserTests, myParser) where
 
 import Spindle.Parser
 import Spindle.Types
-import Data.Text (Text)
 import Utils
 
 import Text.Megaparsec
@@ -20,6 +19,7 @@ parserTests = testGroup "Parser Tests"
   , precedenceTests
   , parseCondTests
   , unnaryTests
+  , lamAppTests
   ]
 
 constructorTests :: TestTree
@@ -98,4 +98,16 @@ precedenceTests = testGroup "precedence tests"
     myParse myParser "complex nesting" "1 + (2 * (3 + 4))" ?= BiOp Add (Lit 1) (BiOp Mul (Lit 2) (BiOp Add (Lit 3) (Lit 4)))
   , testCase "parse chained operations" $
     myParse myParser "chained operations" "1 + 2 + 3 + 4" ?= BiOp Add (BiOp Add (BiOp Add (Lit 1) (Lit 2)) (Lit 3)) (Lit 4)
+  ]
+
+lamAppTests :: TestTree
+lamAppTests = testGroup "lambda application tests"
+  [ testCase "parse simple lambda application" $
+    myParse myParser "simple lambda application" "(\\ x => x + 1) # 5" ?=  App (Lam ["x"] (BiOp Add (Var "x") (Lit 1))) [Lit 5]
+  , testCase "parse lambda application with multiple parameters" $
+    myParse myParser "lambda application with multiple parameters" "(\\ x y => x * y) # 3 # 4" ?= App (Lam ["x", "y"] (BiOp Mul (Var "x") (Var "y"))) [Lit 3, Lit 4]
+  , testCase "parse lambda application with nested lambdas" $
+    myParse myParser "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" ?= App (Lam ["x"] (Lam ["y"] (BiOp Add (Var "x") (Var "y")))) [Lit 2, Lit 3]
+  , testCase "parse lambda application with excess arguments" $
+    myParse myParser "lambda application with excess arguments" "(\\ x => x + 1) # 5 # 6" ?= App (Lam ["x"] (BiOp Add (Var "x") (Lit 1))) [Lit 5, Lit 6]
   ]

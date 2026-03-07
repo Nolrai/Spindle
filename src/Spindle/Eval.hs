@@ -12,6 +12,14 @@ import Control.Monad.Writer
 import Control.Monad.Reader (runReader)
 import Data.List as List
 
+-- | Values is the result of evaluating an expression. It can be a literal, or a lambda. In future versions, it will also include closures for functions.
+data NormalForm
+  = NLit Int
+  | NClosure (Map Text NormalForm) [Text] Expr
+  deriving (Show, Eq)
+
+type Env = Map Text NormalForm
+
 -- | The error type for evaluation. It includes:
 -- - `FunNotFound` for when a function is called that doesn't exist in the environment -- not used in this version, but will be needed for the next one when we add functions
 -- - `VarNotFound` for when a variable is referenced that doesn't exist in the environment
@@ -35,9 +43,9 @@ matchToLit :: Eval m => NormalForm -> m Int
 matchToLit (NLit n) = return n
 matchToLit e = throwError $ NotLit e
 
-matchToLam :: Eval m => NormalForm -> m ( [Text], Expr )
-matchToLam (NLam params body) = return (params, body)
-matchToLam e = throwError $ NotLambda e
+matchClosure :: Eval m => NormalForm -> m (Env, [Text], Expr )
+matchClosure (NClosure env params body) = return (env, params, body)
+matchClosure e = throwError $ NotLambda e
 
 -- | Evaluates an expression to normal form, which is a literal, or a Lambda
 -- this is "call by value" evaluation, as opposed to "call by name" which would only evaluate as much as needed.
@@ -45,23 +53,12 @@ toNormal :: Eval m => Expr -> m NormalForm
 toNormal focus = do
   tell ["Evaluating: " <> Text.show focus]
   case focus of
-    Lam names body -> return (NLam names body)
+    Lam names body -> asks $ \env -> NClosure env names body
     Lit n -> return (NLit n)
-
     App fun args -> do
-      (params, body) <- toNormal fun >>= matchToLam
-      argValues <- toNormal `mapM` args
-      let matchedParams = List.zip params argValues
-      local (foldMap (uncurry Map.insert) matchedParams) $ do
-        let zippedLength = List.length matchedParams
-        let exccesParams = List.drop zippedLength params
-        let excessArgs = List.drop zippedLength args
-        case (exccesParams, excessArgs) of
-          (_:_, []) -> pure $ NLam exccesParams body
-          ([], _:_) -> toNormal $ App body excessArgs
-          ([], []) -> toNormal body
-          (_:_, _:_) -> error "Impossible"
-
+      funVal <- toNormal fun
+      argValues <- mapM toNormal args
+      evalApp funVal argValues
     Var v -> do
       tell ["Looking up variable: " <> v]
       env <- ask
@@ -101,6 +98,30 @@ toNormal focus = do
         tell ["Binding variable: " <> var <> " = " <> Text.show val']
         local (Map.insert var val') (toNormal body)
 
+evalApp :: Eval m => NormalForm -> [NormalForm] -> m NormalForm
+evalApp fun argValues = do
+  (env, params, body) <- matchClosure fun
+  let matchedParams   = List.zip params argValues
+      newEnv          = List.foldl' (\acc (k, v) -> Map.insert k v acc) env matchedParams
+      used            = List.length matchedParams
+      remainingParams = List.drop used params
+      remainingArgs   = List.drop used argValues
+
+  case (remainingParams, remainingArgs) of
+    (_:_, []) ->
+      pure $ NClosure newEnv remainingParams body
+
+    ([], []) ->
+      local (const newEnv) $
+        toNormal body
+
+    ([], _ : _) ->
+      local (const newEnv) $ do
+        fun' <- toNormal body
+        evalApp fun' remainingArgs
+
+    (_:_, _:_ ) ->
+      error "Impossible"
 
 getErrors :: (MonadReader (Map Text NormalForm) m, MonadWriter Log m) =>
   Expr -> m (Either Err NormalForm)

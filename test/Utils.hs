@@ -4,6 +4,7 @@ import Text.Megaparsec
 import Spindle.Parser
 import Data.Text as Text
 import Test.Tasty.HUnit
+import GHC.Stack
 
 myParse :: Parser a -> String -> Text -> Either String a
 myParse p name input =
@@ -12,7 +13,7 @@ myParse p name input =
     Right result -> Right result
 
 (?=) :: (Eq a, Show a) => Either String a -> a -> IO ()
-result ?= expected =
+result ?= expected =  withFrozenCallStack $
   case result of
     Left err -> assertFailure err
     Right val -> val @?= expected
