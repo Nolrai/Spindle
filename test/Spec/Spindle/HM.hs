@@ -13,7 +13,8 @@ import Test.Tasty
 import Test.Tasty.Hedgehog
 import Test.Tasty.HUnit (testCase, (@?=))
 import Hedgehog.Gen (resize)
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
+import Control.Monad.IO.Class (MonadIO(..))
 
 toTyVar :: Size -> TyVar
 toTyVar = fromIntegral
@@ -230,21 +231,15 @@ freeTypeVarsInContextTests = testGroup "freeTypeVarsInContext tests"
       ]
   ]
 
--- | Generate a random HMType that is not equal to the given HMType, used for testing that unify fails when trying to unify two different types
-genHMTypeNE :: HMType -> Gen HMType
-genHMTypeNE h = do
-  h' <- genHMType
-  if h' == h
-    then genHMTypeNE h
-    else pure h'
-
 -- | Generate a random HMType that is not equal to the given HMType and also unifies with it, used for testing that unify succeeds when trying to unify two unifiable types
-genHMTypeNEAndUnifies :: HMType -> Gen HMType
+genHMTypeNEAndUnifies :: HMType -> Gen (HMType, Subst)
 genHMTypeNEAndUnifies h = do
-  h' <- genHMType
-  if h' == h || isLeft (runHM (unify h h'))
-    then genHMTypeNEAndUnifies h
-    else pure h'
+  (t, Right subst) <- Gen.filter ok $ do
+    t <- genHMType
+    pure (t, runHM (unify h t))
+  pure (t, subst)
+  where
+    ok (t, res) = t /= h && isRight res
 
 unifyTests :: TestTree
 unifyTests = testGroup "unify tests"
@@ -257,6 +252,7 @@ unifyTests = testGroup "unify tests"
         runHM (unify (HMTyVar 0 :-> HMInt) (HMInt :-> HMTyVar 1))
           @?= Right (Map.fromList [(0, HMInt), (1, HMInt)])
     ]
+    
   , testGroup "property tests"
     [ testPropertyLarge "unify equal" $ property $ do
         a <- forAll genHMType
@@ -264,7 +260,7 @@ unifyTests = testGroup "unify tests"
 
     , testPropertyLarge "unify bind" $ property $ do
         a <- forAll genTyVar
-        t <- forAll (genHMTypeNE (HMTyVar a))
+        t <- forAll (Gen.filter (/= HMTyVar a) genHMType)
         runHM (unify (HMTyVar a) t) === runHM (bindVar a t)
 
     , testPropertyLarge "unify occurs check" $ property $ do
@@ -277,14 +273,33 @@ unifyTests = testGroup "unify tests"
             t' === (HMTyVar a :-> t)
           _ -> failure
 
-    , testPropertyLarge "unify is sound" $
+    , testPropertyLarge "bindVar is sound" $
+      property $ do
+        a <- forAll genTyVar
+        t <- forAll (Gen.filter ((a `notMember`) . freeTypeVars) genHMType)
+        let bindResult = runHM (bindVar a t)
+        case bindResult of
+          Right subst -> applySubst subst (HMTyVar a) === applySubst subst t
+          Left _ -> failure
+
+    , testPropertyLarge "bindVar fails when variable occurs in type" $
+      property $ do
+        a <- forAll genTyVar
+        t <- forAll genHMType
+        let bindResult = runHM (bindVar a (HMTyVar a :-> t))
+        case bindResult of
+          Left (OccursCheckFailed v t' : _) -> do
+            v === a
+            t' === (HMTyVar a :-> t)
+          _ -> failure
+
+    , testPropertyLarge "unify sound on unifiable types" $
       property $ do
         a <- forAll genHMType
         b <- forAll (genHMTypeNEAndUnifies a)
-        case runHM (unify a b) of
-          Right s ->
-            applySubst s a === applySubst s b
-          Left _ -> error "impossible case reached in unify soundness test: generated two types that do not unify"
+        case b of
+          (b', unifyResult) ->
+              applySubst unifyResult a === applySubst unifyResult b'
 
     , testPropertyLarge "unify symmetric on success/failure" $
       property $ do
