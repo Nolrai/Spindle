@@ -3,18 +3,18 @@
 module Spec.Spindle.HM (hmTests)where
 
 import Spindle.HM
+import Spindle.Types
 import Data.Set as Set hiding (size)
-import Hedgehog
+import Hedgehog hiding (Var)
 import Hedgehog.Range as R
 import Hedgehog.Gen qualified as Gen
 import Control.Monad
 import qualified Data.Map as Map
 import Test.Tasty
 import Test.Tasty.Hedgehog
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 import Hedgehog.Gen (resize)
-import Data.Either (isLeft, isRight)
-import Control.Monad.IO.Class (MonadIO(..))
+import Data.Either (isRight)
 
 toTyVar :: Size -> TyVar
 toTyVar = fromIntegral
@@ -72,6 +72,7 @@ hmTests = testGroup "hm tests"
   , compTests
   , freeTypeVarsTests
   , unifyTests
+  , algorithmWTests
   ]
 
 applyTests :: TestTree
@@ -312,4 +313,57 @@ unifyTests = testGroup "unify tests"
           (Left  _, Left  _) -> success
           _ -> failure
     ]
+  ]
+
+algorithmWTests :: TestTree
+algorithmWTests = testGroup "algorithmW tests"
+  [ testCase "literal infers Int" $
+      runHM (algorithmW Map.empty (Lit 42))
+        @?= Right (Map.empty, HMInt)
+
+  , testCase "bound variable instantiates from context" $
+      runHM (algorithmW (Map.singleton "x" (mono HMInt)) (Var "x"))
+        @?= Right (Map.empty, HMInt)
+
+  , testCase "unbound variable fails" $
+      runHM (algorithmW Map.empty (Var "x"))
+        @?= Left [UnboundVariable "x"]
+
+  , testCase "binary operator forces Int operands" $
+      runHM (algorithmW Map.empty (BiOp Add (Lit 1) (Lit 2)))
+        @?= Right (Map.empty, HMInt)
+
+  , testCase "conditional requires Int guard and matching branches" $
+      runHM (algorithmW Map.empty (Cond (Lit 0) (Lit 1) (Lit 2)))
+        @?= Right (Map.empty, HMInt)
+
+  , testCase "identity lambda infers a -> a" $
+      runHM (algorithmW Map.empty (Lam ["x"] (Var "x")))
+        @?= Right (Map.empty, HMTyVar (-1) :-> HMTyVar (-1))
+
+  , testCase "application specializes a lambda argument type" $
+      runHM (algorithmW Map.empty (App (Lam ["x"] (Var "x")) [Lit 1]))
+        @?= Right
+          ( Map.fromList [(-2, HMInt), (-1, HMInt)]
+          , HMInt
+          )
+
+  , testCase "let generalization supports polymorphic reuse" $ do
+      let expr =
+            Let "id" (Lam ["x"] (Var "x"))
+              (Let "a" (App (Var "id") [Lit 1])
+                (App (Var "id") [Lam ["y"] (Var "y")]))
+      case runHM (algorithmW Map.empty expr) of
+        Right (subst, argTy :-> resTy) ->
+          applySubst subst argTy @?= applySubst subst resTy
+        result ->
+          assertFailure $ "expected polymorphic let to infer an identity function, got: " ++ show result
+
+  , testCase "non-function application fails during unification" $
+      runHM (algorithmW Map.empty (App (Lit 1) [Lit 2]))
+        @?= Left [IncompatibleTypes HMInt (HMInt :-> HMTyVar (-1))]
+
+  , testCase "conditional rejects non-Int guards" $
+      runHM (algorithmW Map.empty (Cond (Lam ["x"] (Var "x")) (Lit 1) (Lit 2)))
+        @?= Left [IncompatibleTypes (HMTyVar (-1) :-> HMTyVar (-1)) HMInt]
   ]

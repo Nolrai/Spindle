@@ -17,8 +17,8 @@ tests :: TestTree
 tests = testGroup "All Tests"
   [ testCase "Example test" $
       1 + 1 @?= (2 :: Int)
-  -- , typesTests
-  -- , parserTests
-  -- , evaluaterTests
+  , typesTests
+  , parserTests
+  , evaluaterTests
   , hmTests
   ]

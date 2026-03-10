@@ -40,6 +40,9 @@ runFreshM (FreshM m) = evalState m (-1)
 instance MonadFresh FreshM where
   fresh = FreshM $ state $ \s -> (s, s - 1)
 
+instance MonadFresh m => MonadFresh (ExceptT e m) where
+  fresh = lift fresh
+
 -- | applies a substitution to a type, replacing type variables according to the mapping
 applySubst :: Subst -> HMType -> HMType
 applySubst _subst HMInt       = HMInt
