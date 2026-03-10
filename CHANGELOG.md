@@ -1,5 +1,15 @@
 # Revision history for Spindle
 
+## 0.2.0.0
+
+A small functional language with:
+
+- integers, booleans
+- if
+- lambdas + application
+- let with Hindley–Milner type inference
+- an interpreter
+
 ## 0.1.0.0 -- YYYY-mm-dd
 
 Spindle 0.1.1.0 Goal (recommended)
