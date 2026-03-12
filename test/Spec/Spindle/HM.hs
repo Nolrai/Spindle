@@ -318,7 +318,7 @@ unifyTests = testGroup "unify tests"
 algorithmWTests :: TestTree
 algorithmWTests = testGroup "algorithmW tests"
   [ testCase "literal infers Int" $
-      runHM (algorithmW Map.empty (Lit 42))
+      runHM (algorithmW Map.empty (ILit 42))
         @?= Right (Map.empty, HMInt)
 
   , testCase "bound variable instantiates from context" $
@@ -330,11 +330,11 @@ algorithmWTests = testGroup "algorithmW tests"
         @?= Left [UnboundVariable "x"]
 
   , testCase "binary operator forces Int operands" $
-      runHM (algorithmW Map.empty (BiOp Add (Lit 1) (Lit 2)))
+      runHM (algorithmW Map.empty (BiOp (ArithOp Add) (ILit 1) (ILit 2)))
         @?= Right (Map.empty, HMInt)
 
   , testCase "conditional requires Int guard and matching branches" $
-      runHM (algorithmW Map.empty (Cond (Lit 0) (Lit 1) (Lit 2)))
+      runHM (algorithmW Map.empty (Cond (ILit 0) (ILit 1) (ILit 2)))
         @?= Right (Map.empty, HMInt)
 
   , testCase "identity lambda infers a -> a" $
@@ -342,7 +342,7 @@ algorithmWTests = testGroup "algorithmW tests"
         @?= Right (Map.empty, HMTyVar (-1) :-> HMTyVar (-1))
 
   , testCase "application specializes a lambda argument type" $
-      runHM (algorithmW Map.empty (App (Lam ["x"] (Var "x")) [Lit 1]))
+      runHM (algorithmW Map.empty (App (Lam ["x"] (Var "x")) [ILit 1]))
         @?= Right
           ( Map.fromList [(-2, HMInt), (-1, HMInt)]
           , HMInt
@@ -351,7 +351,7 @@ algorithmWTests = testGroup "algorithmW tests"
   , testCase "let generalization supports polymorphic reuse" $ do
       let expr =
             Let "id" (Lam ["x"] (Var "x"))
-              (Let "a" (App (Var "id") [Lit 1])
+              (Let "a" (App (Var "id") [ILit 1])
                 (App (Var "id") [Lam ["y"] (Var "y")]))
       case runHM (algorithmW Map.empty expr) of
         Right (subst, argTy :-> resTy) ->
@@ -360,10 +360,10 @@ algorithmWTests = testGroup "algorithmW tests"
           assertFailure $ "expected polymorphic let to infer an identity function, got: " ++ show result
 
   , testCase "non-function application fails during unification" $
-      runHM (algorithmW Map.empty (App (Lit 1) [Lit 2]))
+      runHM (algorithmW Map.empty (App (ILit 1) [ILit 2]))
         @?= Left [IncompatibleTypes HMInt (HMInt :-> HMTyVar (-1))]
 
   , testCase "conditional rejects non-Int guards" $
-      runHM (algorithmW Map.empty (Cond (Lam ["x"] (Var "x")) (Lit 1) (Lit 2)))
+      runHM (algorithmW Map.empty (Cond (Lam ["x"] (Var "x")) (ILit 1) (ILit 2)))
         @?= Left [IncompatibleTypes (HMTyVar (-1) :-> HMTyVar (-1)) HMInt]
   ]

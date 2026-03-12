@@ -15,8 +15,34 @@ evaluaterTests = testGroup "evaluator Tests"
   [ simpleConstructorTests
   , precedenceTests
   , evalCondTests
+  , boolExprTests
   , letTests
   , lamAppTests
+  ]
+-- | Tests for boolean expressions and operators
+boolExprTests :: TestTree
+boolExprTests = testGroup "boolean expression tests"
+  [ evalTestCase "bool literal true" "T" (Right (NBLit True))
+  , evalTestCase "bool literal false" "F" (Right (NBLit False))
+  , evalTestCase "and true true" "T && T" (Right (NBLit True))
+  , evalTestCase "and true false" "T && F" (Right (NBLit False))
+  , evalTestCase "or false false" "F || F" (Right (NBLit False))
+  , evalTestCase "or true false" "T || F" (Right (NBLit True))
+  , evalTestCase "not true" "!T" (Right (NBLit False))
+  , evalTestCase "not false" "!F" (Right (NBLit True))
+  , evalTestCase "equality true" "T == T" (Right (NBLit True))
+  , evalTestCase "equality false" "T == F" (Right (NBLit False))
+  , evalTestCase "inequality true" "T != F" (Right (NBLit True))
+  , evalTestCase "inequality false" "F != F" (Right (NBLit False))
+  , evalTestCase "less than true" "1 < 2" (Right (NBLit True))
+  , evalTestCase "less than false" "2 < 1" (Right (NBLit False))
+  , evalTestCase "greater than true" "3 > 2" (Right (NBLit True))
+  , evalTestCase "greater than false" "2 > 3" (Right (NBLit False))
+  , evalTestCase "less or equal true" "2 <= 2" (Right (NBLit True))
+  , evalTestCase "less or equal false" "3 <= 2" (Right (NBLit False))
+  , evalTestCase "greater or equal true" "3 >= 2" (Right (NBLit True))
+  , evalTestCase "greater or equal false" "1 >= 2" (Right (NBLit False))
+  , evalTestCase "complex boolean expr" "(1 < 2) && (3 > 2) || F" (Right (NBLit True))
   ]
 
 -- | Helper function to create an eval test case from an input string and expected output
@@ -28,56 +54,56 @@ evalTestCase name input expected =
 -- | Tests for simple expression constructors, to make sure they are being evaluated correctly
 simpleConstructorTests :: TestTree
 simpleConstructorTests = testGroup "expr constructor tests"
-  [ evalTestCase "literal" "42" (Right (NLit 42))
-  , evalTestCase "addition" "1 + 2" (Right (NLit 3))
-  , evalTestCase "multiplication" "3 * 4" (Right (NLit 12))
-  , evalTestCase "division" "8 / 2" (Right (NLit 4))
-  , evalTestCase "division by zero" "8 / 0" (Right (NLit 0))
-  , evalTestCase "subtraction" "5 - 2" (Right (NLit 3))
-  , evalTestCase "unary minus" "-5" (Right (NLit (-5)))
-  , evalTestCase "increment" "3++" (Right (NLit 4))
-  , evalTestCase "decrement" "4--" (Right (NLit 3))
+  [ evalTestCase "literal" "42" (Right (NILit 42))
+  , evalTestCase "addition" "1 + 2" (Right (NILit 3))
+  , evalTestCase "multiplication" "3 * 4" (Right (NILit 12))
+  , evalTestCase "division" "8 / 2" (Right (NILit 4))
+  , evalTestCase "division by zero" "8 / 0" (Right (NILit 0))
+  , evalTestCase "subtraction" "5 - 2" (Right (NILit 3))
+  , evalTestCase "unary minus" "-5" (Right (NILit (-5)))
+  , evalTestCase "increment" "3++" (Right (NILit 4))
+  , evalTestCase "decrement" "4--" (Right (NILit 3))
   ]
 
 -- | Tests for operator precedence, to make sure that the correct order of operations is being followed
 precedenceTests :: TestTree
 precedenceTests = testGroup "precedence tests"
-  [ evalTestCase "precedence 1" "1 + 2 * 3" (Right (NLit 7))
-  , evalTestCase "precedence 2" "4 * 5 - 6" (Right (NLit 14))
-  , evalTestCase "precedence 3" "8 / 4 + 2" (Right (NLit 4))
-  , evalTestCase "precedence 4" "3 + 4 * 2 - 1" (Right (NLit 10))
-  , evalTestCase "precedence 5" "6 - 2 * 3 + 4" (Right (NLit 4))
-  , evalTestCase "precedence 6" "8 / 2 * 3" (Right (NLit 12))
-  , evalTestCase "precedence 7" "5 + 6 - 7 * 8 / 4" (Right (NLit (-3)))
-  , evalTestCase "precedence 8" "2 * 3 + 4 / 2 - 1" (Right (NLit 7))
-  , evalTestCase "precedence" "2 + 3 * 4" (Right (NLit 14))
-  , evalTestCase "precedence with parens" "(2 + 3) * 4" (Right (NLit 20))
-  , evalTestCase "division and subtraction" "8 / 2 - 1" (Right (NLit 3))
-  , evalTestCase "complex nesting" "1 + (2 * (3 + 4))" (Right (NLit 15))
-  , evalTestCase "chained operations" "1 + 2 + 3 + 4" (Right (NLit 10))
+  [ evalTestCase "precedence 1" "1 + 2 * 3" (Right (NILit 7))
+  , evalTestCase "precedence 2" "4 * 5 - 6" (Right (NILit 14))
+  , evalTestCase "precedence 3" "8 / 4 + 2" (Right (NILit 4))
+  , evalTestCase "precedence 4" "3 + 4 * 2 - 1" (Right (NILit 10))
+  , evalTestCase "precedence 5" "6 - 2 * 3 + 4" (Right (NILit 4))
+  , evalTestCase "precedence 6" "8 / 2 * 3" (Right (NILit 12))
+  , evalTestCase "precedence 7" "5 + 6 - 7 * 8 / 4" (Right (NILit (-3)))
+  , evalTestCase "precedence 8" "2 * 3 + 4 / 2 - 1" (Right (NILit 7))
+  , evalTestCase "precedence" "2 + 3 * 4" (Right (NILit 14))
+  , evalTestCase "precedence with parens" "(2 + 3) * 4" (Right (NILit 20))
+  , evalTestCase "division and subtraction" "8 / 2 - 1" (Right (NILit 3))
+  , evalTestCase "complex nesting" "1 + (2 * (3 + 4))" (Right (NILit 15))
+  , evalTestCase "chained operations" "1 + 2 + 3 + 4" (Right (NILit 10))
   ]
 
 -- | Tests for conditional expressions, to make sure that the correct branch is being evaluated based on the condition
 evalCondTests :: TestTree
 evalCondTests = testGroup "conditional tests"
-  [ evalTestCase "conditional true branch" "(1 ? 2 : 3)" (Right (NLit 2))
-  , evalTestCase "conditional false branch" "(0 ? 2 : 3)" (Right (NLit 3))
-  , evalTestCase "nested conditional" "(1 ? (0 ? 4 : 5) : 3)" (Right (NLit 5))
-  , evalTestCase "conditional with expression branches" "(1 ? 2 + 3 : 4 * 5)" (Right (NLit 5))
-  , evalTestCase "conditional with nested expressions" "(1 ? (2 + 3) * 4 : 5 - 6)" (Right (NLit 20))
+  [ evalTestCase "conditional true branch" "(T ? 2 : 3)" (Right (NILit 2))
+  , evalTestCase "conditional false branch" "(F ? 2 : 3)" (Right (NILit 3))
+  , evalTestCase "nested conditional" "(T ? (F ? 4 : 5) : 3)" (Right (NILit 5))
+  , evalTestCase "conditional with expression branches" "(T ? 2 + 3 : 4 * 5)" (Right (NILit 5))
+  , evalTestCase "conditional with nested expressions" "(T ? (2 + 3) * 4 : 5 - 6)" (Right (NILit 20))
   ]
 
 -- | Tests for lambda application, to make sure that closures are being applied correctly and that the correct number of arguments are being passed
 lamAppTests :: TestTree
 lamAppTests = testGroup "lambda application tests"
-  [ evalTestCase "simple lambda application" "(\\ x => x + 1) # 5" (Right (NLit 6))
-  , evalTestCase "lambda application with multiple parameters" "(\\ x y => x * y) # 3 # 4" (Right (NLit 12))
-  , evalTestCase "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" (Right (NLit 5))
-  , evalTestCase "lambda application with excess arguments" "(\\ x => x + 1) # 3 # 6" (Left (NotLambda (NLit 4)))
-  , evalTestCase "lambda application with excess parameters" "(\\ x y => x + y) # 2" (Right (NClosure (fromList [("x", NLit 2)]) ["y"] (BiOp Add (Var "x") (Var "y"))))
-  , evalTestCase "closure captures defining environment" alphaRenamingText1 (Right (NLit 42))
-  , evalTestCase "inner binder does not capture closure variable" alphaRenamingText2 (Right (NLit 42))
-  , evalTestCase "later shadowing does not affect closure variable" alphaRenamingText3 (Right (NLit 5))
+  [ evalTestCase "simple lambda application" "(\\ x => x + 1) # 5" (Right (NILit 6))
+  , evalTestCase "lambda application with multiple parameters" "(\\ x y => x * y) # 3 # 4" (Right (NILit 12))
+  , evalTestCase "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" (Right (NILit 5))
+  , evalTestCase "lambda application with excess arguments" "(\\ x => x + 1) # 3 # 6" (Left (NotLambda (NILit 4)))
+  , evalTestCase "lambda application with excess parameters" "(\\ x y => x + y) # 2" (Right (NClosure (fromList [("x", NILit 2)]) ["y"] (BiOp (ArithOp Add) (Var "x") (Var "y"))))
+  , evalTestCase "closure captures defining environment" alphaRenamingText1 (Right (NILit 42))
+  , evalTestCase "inner binder does not capture closure variable" alphaRenamingText2 (Right (NILit 42))
+  , evalTestCase "later shadowing does not affect closure variable" alphaRenamingText3 (Right (NILit 5))
   ]
 
 alphaRenamingText1 :: Text
@@ -102,8 +128,8 @@ alphaRenamingText3 =
 -- | Tests for let bindings, to make sure that variables are being bound correctly and that shadowing is working as expected
 letTests :: TestTree
 letTests = testGroup "let binding tests"
-  [ evalTestCase "eval let binding" "let v := 2 in v" (Right (NLit 2))
-  , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NLit 6))
-  , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NLit 10))
-  , evalTestCase "eval let shadowing" "let x := 1 in let x := 2 in x + x" (Right (NLit 4))
+  [ evalTestCase "eval let binding" "let v := 2 in v" (Right (NILit 2))
+  , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NILit 6))
+  , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NILit 10))
+  , evalTestCase "eval let shadowing" "let x := 1 in let x := 2 in x + x" (Right (NILit 4))
   ]

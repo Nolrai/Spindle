@@ -15,6 +15,7 @@ type TyVar = Integer
 
 data HMType
   = HMInt
+  | HMBool
   | HMTyVar TyVar
   | HMType :-> HMType
   deriving (Show, Eq, Ord)
@@ -45,9 +46,9 @@ instance MonadFresh m => MonadFresh (ExceptT e m) where
 
 -- | applies a substitution to a type, replacing type variables according to the mapping
 applySubst :: Subst -> HMType -> HMType
-applySubst _subst HMInt       = HMInt
 applySubst subst  (HMTyVar v) = Map.findWithDefault (HMTyVar v) v subst
 applySubst subst  (t1 :-> t2) = applySubst subst t1 :-> applySubst subst t2
+applySubst _subst a       = a
 
 -- | Apply substitution to a type scheme, ensuring that bound variables are not substituted
 applySubstToScheme :: Subst -> TypeScheme -> TypeScheme
@@ -123,7 +124,8 @@ bindVar v t
 
 algorithmW :: (MonadFresh m, MonadError [HMError] m) => Context -> Expr -> m (Subst, HMType)
 -- literals have type Int
-algorithmW _ (Lit _) = pure (Map.empty, HMInt)
+algorithmW _ (ILit _) = pure (Map.empty, HMInt)
+algorithmW _ (BLit _) = pure (Map.empty, HMBool)
 
 algorithmW ctx (BiOp _ e1 e2) = do
   (s1, t1) <- algorithmW ctx e1

@@ -14,7 +14,8 @@ import Data.List as List
 
 -- | Values is the result of evaluating an expression. It can be a literal, or a lambda. In future versions, it will also include closures for functions.
 data NormalForm
-  = NLit Int
+  = NBLit Bool
+  | NILit Int
   | NClosure (Map Text NormalForm) [Text] Expr
   deriving (Show, Eq)
 
@@ -29,6 +30,8 @@ data Err =
   | VarNotFound Text (Set Text)
   | Stall Expr
   | NotLambda NormalForm
+  | NotILit NormalForm
+  | NotBLit NormalForm
   | NotLit NormalForm
   deriving (Show, Eq)
 
@@ -39,9 +42,14 @@ type Log = [Text]
 type Eval m = (MonadReader (Map Text NormalForm) m, MonadWriter Log m, MonadError Err m)
 
 -- | Tests if expression to a literal, if possible. If not, it throws an error.
-matchToLit :: Eval m => NormalForm -> m Int
-matchToLit (NLit n) = return n
-matchToLit e = throwError $ NotLit e
+matchToILit :: Eval m => NormalForm -> m Int
+matchToILit (NILit n) = return n
+matchToILit e = throwError $ NotILit e
+
+-- | Tests if expression to a literal, if possible. If not, it throws an error.
+matchToBLit :: Eval m => NormalForm -> m Bool
+matchToBLit (NBLit b) = return b
+matchToBLit e = throwError $ NotBLit e
 
 matchClosure :: Eval m => NormalForm -> m (Env, [Text], Expr )
 matchClosure (NClosure env params body) = return (env, params, body)
@@ -57,7 +65,8 @@ toNormal focus = do
     Lam names body -> asks $ \env -> NClosure env names body
 
     -- For a literal, we just return it as a normal form.
-    Lit n -> return (NLit n)
+    ILit n -> return (NILit n)
+    BLit b -> return (NBLit b)
 
     -- For an application, we first evaluate the function and the arguments to normal form, and then apply the function to the arguments. See `evalApp` for the application logic.
     App fun args -> do
@@ -74,33 +83,73 @@ toNormal focus = do
         Just e -> return e
 
     -- For a binary operation, we first evaluate the operands to normal form, and then apply the operation. If the operands are not literals, we throw an error.
-    BiOp op e1 e2 ->
-      tell ["Evaluating binary operation: " <> Text.show op] >>
+    BiOp (ArithOp op) e1 e2 -> do
+      tell ["Evaluating arithmetic operation: " <> Text.show op]
       let f = case op of
                 Add -> (+)
                 Sub -> (-)
                 Mul -> (*)
                 Div -> (\ x y -> if y == 0 then 0 else x `div` y)
           in do
-        e1' <- matchToLit =<< toNormal e1
-        e2' <- matchToLit =<< toNormal e2
-        return $ NLit (f e1' e2')
+        e1' <- matchToILit =<< toNormal e1
+        e2' <- matchToILit =<< toNormal e2
+        pure . NILit $ f e1' e2'
+
+    BiOp (LogicOp op) e1 e2 -> do
+      tell ["Evaluating boolean operation: " <> Text.show op]
+      let f = case op of
+                And -> (&&)
+                Or -> (||)
+          in do
+        e1' <- matchToBLit =<< toNormal e1
+        e2' <- matchToBLit =<< toNormal e2
+        return $ NBLit (f e1' e2')
+
+    BiOp (OrderOp op) e1 e2 -> do
+      tell ["Evaluating order operation: " <> Text.show op]
+      let f = case op of
+                Eq -> (==)
+                NEq -> (/=)
+                Lt -> (<)
+                Gt -> (>)
+                LEq -> (<=)
+                GEq -> (>=)
+          in do
+        e1' <- toNormal e1
+        e2' <- toNormal e2
+        NBLit <$>
+          case (e1', e2') of
+            (NILit n1, NILit n2) -> pure $ f n1 n2
+            (NBLit b1, NBLit b2) ->
+              let toInt b = if b then 1 else 0
+                in pure $ f (toInt b1) (toInt b2)
+            (NILit _, _) -> throwError $ NotBLit e2'
+            (NBLit _, _) -> throwError $ NotILit e2'
+            (NClosure {}, _) -> throwError $ NotLit e2'
 
     -- For a unary operation, we first evaluate the operand to normal form, and then apply the operation. If the operand is not a literal, we throw an error.
-    UnOp op e -> do
+    UnOp (ArithUn op) e -> do
       tell ["Evaluating unary operation: " <> Text.show op]
       let f = case op of
                 Neg -> negate
                 Inc -> (+ 1)
                 Dec -> (\ x -> if x == 0 then 0 else x - 1)
-      e' <- matchToLit =<< toNormal e
-      return $ NLit (f e')
+      e' <- matchToILit =<< toNormal e
+      return $ NILit (f e')
+
+    UnOp (LogicUn op) e -> do
+      tell ["Evaluating unary operation: " <> Text.show op]
+      let f = case op of
+                Not -> not
+      e' <- matchToBLit =<< toNormal e
+      return $ NBLit (f e')
+
 
     -- For a conditional, we first evaluate the condition to normal form, and then check if it's a non-zero literal. If it is, we evaluate the true branch; otherwise, we evaluate the false branch. If the condition is not a literal, we throw an error.
     Cond c t f -> do
       tell ["Evaluating conditional expression"]
-      c' <- matchToLit =<< toNormal c
-      if c' /= 0 then toNormal t else toNormal f
+      c' <- matchToBLit =<< toNormal c
+      if c' then toNormal t else toNormal f
 
     -- For a let expression, we first evaluate the value to normal form, and then extend the environment with the new variable binding before evaluating the body. This allows us to support local variable bindings.
     Let var val body ->

@@ -23,7 +23,12 @@ lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaces
 
 decimal :: Parser Expr
-decimal = Lit <$> lexeme L.decimal <?> "decimal number"
+decimal = ILit <$> lexeme L.decimal <?> "decimal number"
+
+boolean :: Parser Expr
+boolean = (BLit True <$ try (symbol "T"))
+      <|> (BLit False <$ try (symbol "F"))
+      <?> "boolean literal"
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -35,9 +40,10 @@ term :: Parser Expr
 term =
   parens (try expr)
   <|> letTerm
-  <|> Var <$> identifier
+  <|> boolean
   <|> lamTerm
   <|> decimal
+  <|> Var <$> identifier
   <?> "term"
 
 lamTerm :: Parser Expr
@@ -58,14 +64,28 @@ identifier = lexeme ((:) <$> letterChar <*> many alphaNumChar) <&> pack
 
 table :: [[Operator Parser Expr]]
 table = [ [ binary "#" toApp ] -- application has the highest precedence
-        , [ prefix  "-"  (UnOp Neg)
-          , prefix  "+"  id ]
-        , [ postfix "++" (UnOp Inc)
-          , postfix "--" (UnOp Dec) ]
-        , [ binary  "*"  (BiOp Mul)
-          , binary  "/"  (BiOp Div) ]
-        , [ binary  "+"  (BiOp Add)
-          , binary  "-"  (BiOp Sub) ]
+        , [ prefix  "-"  (UnOp (ArithUn Neg))
+          ]
+        , [ postfix "++" (UnOp (ArithUn Inc))
+          , postfix "--" (UnOp (ArithUn Dec))
+          ]
+        , [ binary  "*"  (BiOp (ArithOp Mul))
+          , binary  "/"  (BiOp (ArithOp Div))
+          ]
+        , [ binary  "+"  (BiOp (ArithOp Add))
+          , binary  "-"  (BiOp (ArithOp Sub))
+          ]
+        , [ binary "==" (BiOp (OrderOp Eq))
+          , binary "!=" (BiOp (OrderOp NEq))
+          , binary "<=" (BiOp (OrderOp LEq))
+          , binary ">=" (BiOp (OrderOp GEq))
+          , binary "<"  (BiOp (OrderOp Lt))
+          , binary ">"  (BiOp (OrderOp Gt))
+          ]
+        , [ prefix  "!"  (UnOp (LogicUn Not))  -- logical NOT
+          , binary "&&" (BiOp (LogicOp And)) -- logical AND
+          , binary "||" (BiOp (LogicOp Or))  -- logical OR
+          ]
         , [ ternary "?" ":" Cond ]
         ]
 
