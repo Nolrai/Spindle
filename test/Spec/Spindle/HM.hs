@@ -3,7 +3,7 @@
 module Spec.Spindle.HM (hmTests)where
 
 import Spindle.HM
-import Spindle.Types
+import Spindle.Expr
 import Data.Set as Set hiding (size)
 import Hedgehog hiding (Var)
 import Hedgehog.Range as R
@@ -253,7 +253,7 @@ unifyTests = testGroup "unify tests"
         runHM (unify (HMTyVar 0 :-> HMInt) (HMInt :-> HMTyVar 1))
           @?= Right (Map.fromList [(0, HMInt), (1, HMInt)])
     ]
-    
+
   , testGroup "property tests"
     [ testPropertyLarge "unify equal" $ property $ do
         a <- forAll genHMType

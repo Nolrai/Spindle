@@ -3,8 +3,10 @@
 module Main (main) where
 
 import Spec.Spindle.Parser (parserTests)
-import Spec.Spindle.Types (typesTests)
-import Spec.Spindle.Eval (evaluaterTests)
+import Spec.Spindle.Expr (typesTests)
+import Spec.Spindle.Eval.ByValue (byValueTests)
+import Spec.Spindle.Eval.ByName (byNameTests)
+import Spec.Spindle.Eval.Common (commonTests)
 import Spec.Spindle.HM (hmTests)
 
 import Test.Tasty
@@ -19,6 +21,8 @@ tests = testGroup "All Tests"
       1 + 1 @?= (2 :: Int)
   , typesTests
   , parserTests
-  , evaluaterTests
+  , byValueTests
+  , byNameTests
+  , commonTests
   , hmTests
   ]

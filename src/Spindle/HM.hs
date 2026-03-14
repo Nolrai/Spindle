@@ -1,6 +1,6 @@
 module Spindle.HM where
 
-import Spindle.Types
+import Spindle.Expr
 import Data.Map as Map
 import Data.Set as Set
 import Data.Text as Text
@@ -70,6 +70,7 @@ instantiate (Forall vars t) = do
 -- | Compute the set of free type variables in a type
 freeTypeVars :: HMType -> Set TyVar
 freeTypeVars HMInt = Set.empty
+freeTypeVars HMBool = Set.empty
 freeTypeVars (HMTyVar v) = Set.singleton v
 freeTypeVars (t1 :-> t2) = freeTypeVars t1 `Set.union` freeTypeVars t2
 

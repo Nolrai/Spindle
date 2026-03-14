@@ -60,9 +60,12 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Spindle.Parser
-    Spindle.Types
-    Spindle.Eval
+    Spindle.Expr
+    Spindle.Eval.ByValue
+    Spindle.Eval.ByName
+    Spindle.Eval.Common
     Spindle.HM
+
   -- Add other modules as needed:
   -- other-modules:    Spindle.Internal
   build-depends:
@@ -84,8 +87,9 @@ test-suite Spindle-test
   -- Modules included in this executable, other than Main.
   other-modules:
       Spec.Spindle.Parser
-      Spec.Spindle.Eval
-      Spec.Spindle.Types
+      Spec.Spindle.Eval.ByValue
+      Spec.Spindle.Eval.ByName
+      Spec.Spindle.Expr
       Spec.Spindle.HM
       Utils
 

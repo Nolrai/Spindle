@@ -1,4 +1,4 @@
-module Spindle.Types where
+module Spindle.Expr where
 
 import Data.Text
 

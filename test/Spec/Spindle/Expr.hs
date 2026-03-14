@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Spec.Spindle.Types (typesTests) where
+module Spec.Spindle.Expr (typesTests) where
 
-import Spindle.Types
+import Spindle.Expr
 import Test.Tasty
 import Test.Tasty.HUnit
 

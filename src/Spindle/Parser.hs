@@ -7,7 +7,7 @@ import Text.Megaparsec
 
 import Data.Void
 import Control.Monad.Combinators.Expr
-import Spindle.Types
+import Spindle.Expr
 import Data.Functor
 import Data.Text hiding (empty)
 

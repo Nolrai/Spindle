@@ -1,17 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Spec.Spindle.Eval (evaluaterTests) where
+module Spec.Spindle.Eval.ByValue (byValueTests) where
 
-import Spindle.Eval
+import Spindle.Eval.ByValue
 import Test.Tasty
 import Test.Tasty.HUnit
 import Spec.Spindle.Parser (myParser)
-import Spindle.Types
+import Spindle.Expr
 import Utils
 import Data.Text (Text)
 import GHC.IsList (fromList)
+import Spindle.Eval.Common
 
-evaluaterTests :: TestTree
-evaluaterTests = testGroup "evaluator Tests"
+byValueTests :: TestTree
+byValueTests = testGroup "ByValue evaluator Tests"
   [ simpleConstructorTests
   , precedenceTests
   , evalCondTests
@@ -19,9 +20,12 @@ evaluaterTests = testGroup "evaluator Tests"
   , letTests
   , lamAppTests
   ]
--- | Tests for boolean expressions and operators
+
+-- The following test groups are adapted from the original Eval.hs
+-- They use the ByValue evaluator
+
 boolExprTests :: TestTree
-boolExprTests = testGroup "boolean expression tests"
+boolExprTests = testGroup "boolean expression tests (ByValue)"
   [ evalTestCase "bool literal true" "T" (Right (NBLit True))
   , evalTestCase "bool literal false" "F" (Right (NBLit False))
   , evalTestCase "and true true" "T && T" (Right (NBLit True))
@@ -45,15 +49,13 @@ boolExprTests = testGroup "boolean expression tests"
   , evalTestCase "complex boolean expr" "(1 < 2) && (3 > 2) || F" (Right (NBLit True))
   ]
 
--- | Helper function to create an eval test case from an input string and expected output
-evalTestCase :: String -> Text -> Either Err NormalForm -> TestTree
+evalTestCase :: String -> Text -> Either Err Thunk -> TestTree
 evalTestCase name input expected =
   testCase name $
     (eval <$> myParse myParser name input) ?= expected
 
--- | Tests for simple expression constructors, to make sure they are being evaluated correctly
 simpleConstructorTests :: TestTree
-simpleConstructorTests = testGroup "expr constructor tests"
+simpleConstructorTests = testGroup "expr constructor tests (ByValue)"
   [ evalTestCase "literal" "42" (Right (NILit 42))
   , evalTestCase "addition" "1 + 2" (Right (NILit 3))
   , evalTestCase "multiplication" "3 * 4" (Right (NILit 12))
@@ -65,9 +67,8 @@ simpleConstructorTests = testGroup "expr constructor tests"
   , evalTestCase "decrement" "4--" (Right (NILit 3))
   ]
 
--- | Tests for operator precedence, to make sure that the correct order of operations is being followed
 precedenceTests :: TestTree
-precedenceTests = testGroup "precedence tests"
+precedenceTests = testGroup "precedence tests (ByValue)"
   [ evalTestCase "precedence 1" "1 + 2 * 3" (Right (NILit 7))
   , evalTestCase "precedence 2" "4 * 5 - 6" (Right (NILit 14))
   , evalTestCase "precedence 3" "8 / 4 + 2" (Right (NILit 4))
@@ -83,9 +84,8 @@ precedenceTests = testGroup "precedence tests"
   , evalTestCase "chained operations" "1 + 2 + 3 + 4" (Right (NILit 10))
   ]
 
--- | Tests for conditional expressions, to make sure that the correct branch is being evaluated based on the condition
 evalCondTests :: TestTree
-evalCondTests = testGroup "conditional tests"
+evalCondTests = testGroup "conditional tests (ByValue)"
   [ evalTestCase "conditional true branch" "(T ? 2 : 3)" (Right (NILit 2))
   , evalTestCase "conditional false branch" "(F ? 2 : 3)" (Right (NILit 3))
   , evalTestCase "nested conditional" "(T ? (F ? 4 : 5) : 3)" (Right (NILit 5))
@@ -93,9 +93,8 @@ evalCondTests = testGroup "conditional tests"
   , evalTestCase "conditional with nested expressions" "(T ? (2 + 3) * 4 : 5 - 6)" (Right (NILit 20))
   ]
 
--- | Tests for lambda application, to make sure that closures are being applied correctly and that the correct number of arguments are being passed
 lamAppTests :: TestTree
-lamAppTests = testGroup "lambda application tests"
+lamAppTests = testGroup "lambda application tests (ByValue)"
   [ evalTestCase "simple lambda application" "(\\ x => x + 1) # 5" (Right (NILit 6))
   , evalTestCase "lambda application with multiple parameters" "(\\ x y => x * y) # 3 # 4" (Right (NILit 12))
   , evalTestCase "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" (Right (NILit 5))
@@ -125,9 +124,8 @@ alphaRenamingText3 =
   <> "let f := (\\u => a) in"
   <> "(((\\x => \\a => x) # f) # 99) # 0"
 
--- | Tests for let bindings, to make sure that variables are being bound correctly and that shadowing is working as expected
 letTests :: TestTree
-letTests = testGroup "let binding tests"
+letTests = testGroup "let binding tests (ByValue)"
   [ evalTestCase "eval let binding" "let v := 2 in v" (Right (NILit 2))
   , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NILit 6))
   , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NILit 10))

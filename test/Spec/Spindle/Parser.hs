@@ -3,7 +3,7 @@
 module Spec.Spindle.Parser (parserTests, myParser) where
 
 import Spindle.Parser
-import Spindle.Types
+import Spindle.Expr
 import Utils
 
 import Text.Megaparsec

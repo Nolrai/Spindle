@@ -1,8 +1,8 @@
 {-# Language ScopedTypeVariables #-}
 {-# Language OverloadedStrings #-}
-module Spindle.Eval where
+module Spindle.Eval.ByValue where
 
-import Spindle.Types
+import Spindle.Expr
 import Control.Monad.RWS
 import Control.Monad.Except (MonadError, throwError, runExceptT)
 import Data.Text as Text
@@ -11,53 +11,11 @@ import Data.Set
 import Control.Monad.Writer
 import Control.Monad.Reader (runReader)
 import Data.List as List
-
--- | Values is the result of evaluating an expression. It can be a literal, or a lambda. In future versions, it will also include closures for functions.
-data NormalForm
-  = NBLit Bool
-  | NILit Int
-  | NClosure (Map Text NormalForm) [Text] Expr
-  deriving (Show, Eq)
-
-type Env = Map Text NormalForm
-
--- | The error type for evaluation. It includes:
--- - `FunNotFound` for when a function is called that doesn't exist in the environment -- not used in this version, but will be needed for the next one when we add functions
--- - `VarNotFound` for when a variable is referenced that doesn't exist in the environment
--- - `Stall` for when evaluation gets stuck on an expression that can't be reduced further
-data Err =
-  FunNotFound Text (Set Text)
-  | VarNotFound Text (Set Text)
-  | Stall Expr
-  | NotLambda NormalForm
-  | NotILit NormalForm
-  | NotBLit NormalForm
-  | NotLit NormalForm
-  deriving (Show, Eq)
-
--- | Log is a list of Text messages that describe the evaluation process.
-type Log = [Text]
-
--- | Eval is a constraint alias for a monad that combines Reader for the environment, Writer for logging, and Except for error handling.
-type Eval m = (MonadReader (Map Text NormalForm) m, MonadWriter Log m, MonadError Err m)
-
--- | Tests if expression to a literal, if possible. If not, it throws an error.
-matchToILit :: Eval m => NormalForm -> m Int
-matchToILit (NILit n) = return n
-matchToILit e = throwError $ NotILit e
-
--- | Tests if expression to a literal, if possible. If not, it throws an error.
-matchToBLit :: Eval m => NormalForm -> m Bool
-matchToBLit (NBLit b) = return b
-matchToBLit e = throwError $ NotBLit e
-
-matchClosure :: Eval m => NormalForm -> m (Env, [Text], Expr )
-matchClosure (NClosure env params body) = return (env, params, body)
-matchClosure e = throwError $ NotLambda e
+import Spindle.Eval.Common
 
 -- | Evaluates an expression to normal form, which is a literal, or a Lambda
 -- this is "call by value" evaluation, as opposed to "call by name" which would only evaluate as much as needed.
-toNormal :: Eval m => Expr -> m NormalForm
+toNormal :: Eval m => Expr -> m Thunk
 toNormal focus = do
   tell ["Evaluating: " <> Text.show focus]
   case focus of
@@ -144,14 +102,13 @@ toNormal focus = do
       e' <- matchToBLit =<< toNormal e
       return $ NBLit (f e')
 
-
-    -- For a conditional, we first evaluate the condition to normal form, and then check if it's a non-zero literal. If it is, we evaluate the true branch; otherwise, we evaluate the false branch. If the condition is not a literal, we throw an error.
+    -- For a conditional, we first evaluate the condition to normal form, and then check if its a boolean literal, if it is evaluate the coresponding expr
     Cond c t f -> do
       tell ["Evaluating conditional expression"]
       c' <- matchToBLit =<< toNormal c
       if c' then toNormal t else toNormal f
 
-    -- For a let expression, we first evaluate the value to normal form, and then extend the environment with the new variable binding before evaluating the body. This allows us to support local variable bindings.
+    -- For a letrec expression, bind the variable to a closure.
     Let var val body ->
       do
         val' <- toNormal val
@@ -159,7 +116,7 @@ toNormal focus = do
         local (Map.insert var val') (toNormal body)
 
 -- | Evaluates a function application. It takes a function in normal form (which should be a closure) and a list of argument values in normal form, and applies the function to the arguments. It handles partial application by returning a new closure if not all parameters are provided, and it handles extra arguments by evaluating the function body to normal form and then applying the remaining arguments.
-evalApp :: Eval m => NormalForm -> [NormalForm] -> m NormalForm
+evalApp :: Eval m => Thunk -> [Thunk] -> m Thunk
 evalApp fun argValues = do
   (env, params, body) <- matchClosure fun
   let matchedParams   = List.zip params argValues
@@ -185,18 +142,18 @@ evalApp fun argValues = do
       error "Impossible"
 
 -- | A helper function to evaluate an expression in an empty environment and get either the result or the error.
-eval :: Expr -> Either Err NormalForm
+eval :: Expr -> Either Err Thunk
 eval = fst . runEval Map.empty
 
 -- These three functions each strip away one layer of the Eval monad stack. `runEval` runs the entire Eval monad stack, `getLogs` runs the Writer layer to get the logs, and `getErrors` runs the Except layer to get either the result or the error.
 
-runEval :: Map Text NormalForm -> Expr -> (Either Err NormalForm, Log)
+runEval :: Map Text Thunk -> Expr -> (Either Err Thunk, Log)
 runEval env e = runReader (getLogs e) env
 
-getLogs :: (MonadReader (Map Text NormalForm) m) => Expr -> m (Either Err NormalForm, Log)
+getLogs :: (MonadReader (Map Text Thunk) m) => Expr -> m (Either Err Thunk, Log)
 getLogs e = runWriterT (getErrors e)
 
-getErrors :: (MonadReader (Map Text NormalForm) m, MonadWriter Log m) =>
-  Expr -> m (Either Err NormalForm)
+getErrors :: (MonadReader (Map Text Thunk) m, MonadWriter Log m) =>
+  Expr -> m (Either Err Thunk)
 getErrors e = runExceptT (toNormal e)
 
