@@ -89,8 +89,10 @@ test-suite Spindle-test
       Spec.Spindle.Parser
       Spec.Spindle.Eval.ByValue
       Spec.Spindle.Eval.ByName
+      Spec.Spindle.Eval.Common
       Spec.Spindle.Expr
       Spec.Spindle.HM
+
       Utils
 
   -- LANGUAGE extensions used by modules in this package.
