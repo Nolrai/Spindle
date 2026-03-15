@@ -7,13 +7,15 @@ module Spec.Spindle.Eval.Common (commonTests, testThunkEq) where
 import Test.Tasty
 import Test.Tasty.HUnit
 import Data.Map as Map
-import Data.List as List
 import Spindle.Eval.Common
 import Control.Monad (zipWithM_, void)
 import GHC.Stack
 
+-- | A test group for common evaluator tests. This is currently empty, but you can add tests here as needed.
 commonTests :: TestTree
 commonTests = testGroup "Common evaluator Tests" []
+
+-- | Assert that two thunks are equal. This is a deep equality check that compares the structure of the thunks, including their maps, variables, and expressions.
 
 testThunkEq :: Thunk -> Thunk -> IO ()
 testThunkEq

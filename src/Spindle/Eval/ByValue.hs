@@ -81,8 +81,8 @@ toNormal focus = do
             (NBLit b1, NBLit b2) ->
               let toInt b = if b then 1 else 0
                 in pure $ f (toInt b1) (toInt b2)
-            (NILit _, _) -> throwError $ NotBLit e2'
-            (NBLit _, _) -> throwError $ NotILit e2'
+            (NILit _, _) -> throwError $ NotILit e2'
+            (NBLit _, _) -> throwError $ NotBLit e2'
             (NClosure {}, _) -> throwError $ NotLit e2'
 
     -- For a unary operation, we first evaluate the operand to normal form, and then apply the operation. If the operand is not a literal, we throw an error.
@@ -91,7 +91,7 @@ toNormal focus = do
       let f = case op of
                 Neg -> negate
                 Inc -> (+ 1)
-                Dec -> (\ x -> if x == 0 then 0 else x - 1)
+                Dec -> (\ x -> x - 1)
       e' <- matchToILit =<< toNormal e
       return $ NILit (f e')
 
@@ -108,12 +108,32 @@ toNormal focus = do
       c' <- matchToBLit =<< toNormal c
       if c' then toNormal t else toNormal f
 
-    -- For a letrec expression, bind the variable to a closure.
-    Let var val body ->
+    -- In the call-by-value evaluator, `let` eagerly evaluates the bound expression.
+    -- Most values therefore are not meaningfully recursive: once evaluated, we bind
+    -- the resulting value directly in the body environment.
+    --
+    -- Closures are the exception. A closure is already a value without evaluating its
+    -- body, so we can safely tie the knot by extending the closure's captured
+    -- environment with the binding itself. That allows recursive functions to refer
+    -- to their own name inside their body.
+    --
+    -- In both cases we log the binding and evaluate the body in the extended
+    -- environment.
+
+    Let var val0 body ->
       do
-        val' <- toNormal val
-        tell ["Binding variable: " <> var <> " = " <> Text.show val']
-        local (Map.insert var val') (toNormal body)
+        val1 <- toNormal val0
+        case val1 of
+          -- closures are the only values that can be recursive, so we only log the binding if its a closure, otherwise we just log the value being bound.
+          NClosure env params closureBody -> do
+            tell ["Binding variable: " <> var <> " = Closure with params: " <> Text.show params]
+            let
+              env' = Map.insert var val2 env
+              val2 = NClosure env' params closureBody
+            local (Map.insert var val2) (testEnvForSize >> toNormal body)
+          _ -> do
+            tell ["Binding variable: " <> var <> " = " <> Text.show val1]
+            local (Map.insert var val1) (testEnvForSize >> toNormal body)
 
 -- | Evaluates a function application. It takes a function in normal form (which should be a closure) and a list of argument values in normal form, and applies the function to the arguments. It handles partial application by returning a new closure if not all parameters are provided, and it handles extra arguments by evaluating the function body to normal form and then applying the remaining arguments.
 evalApp :: Eval m => Thunk -> [Thunk] -> m Thunk

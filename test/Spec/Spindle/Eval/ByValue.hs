@@ -10,6 +10,8 @@ import Utils
 import Data.Text (Text)
 import GHC.IsList (fromList)
 import Spindle.Eval.Common
+import System.Timeout (timeout)
+import Control.Monad.IO.Class
 
 byValueTests :: TestTree
 byValueTests = testGroup "ByValue evaluator Tests"
@@ -19,6 +21,7 @@ byValueTests = testGroup "ByValue evaluator Tests"
   , boolExprTests
   , letTests
   , lamAppTests
+  , omegaTests
   ]
 
 -- The following test groups are adapted from the original Eval.hs
@@ -130,4 +133,27 @@ letTests = testGroup "let binding tests (ByValue)"
   , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NILit 6))
   , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NILit 10))
   , evalTestCase "eval let shadowing" "let x := 1 in let x := 2 in x + x" (Right (NILit 4))
+  ]
+
+omegaTests :: TestTree
+omegaTests = testGroup "test differences between byName and byValue (ByValue)"
+  [ testCase "omega times out" $ do
+      r <- liftIO $ timeout 100000 $ do
+        Right !expr <- pure $ myParse myParser "omega" "let z := \\ y => y # y in let w := z # z in w"
+        case eval expr of
+          Left !value -> pure $ Left value
+          Right !value -> pure $ Right value
+      case r of
+        Nothing -> pure ()  -- success: it timed out
+        Just value  -> assertFailure $ "divergent computation returned value: " <> show value
+        
+  , testCase "'(\\ x => 1) omega' also times out" $ do
+      r <- liftIO $ timeout 100000 $ do
+        !parseResult <- pure $ myParse myParser "omega" "let z := (\\ y => y # y) in (let w := z # z in (\\ x => 1) # w)"
+        case eval <$> parseResult of
+          Left !value -> pure $ Left value
+          Right !value -> pure $ Right value
+      case r of
+        Nothing -> pure ()  -- success: it timed out
+        Just value  -> assertFailure $ "divergent computation returned value: " <> show value
   ]

@@ -6,7 +6,7 @@ import Control.Monad.Except (MonadError, throwError)
 import Data.Text as Text hiding (show)
 import Data.Map as Map
 import Data.Set
-import Control.Monad (void)
+import Control.Monad (void, when)
 
 -- | Values is the result of evaluating an expression. It can be a literal, or a lambda. In future versions, it will also include closures for functions.
 data Thunk
@@ -47,7 +47,7 @@ matchClosure e = throwError $ NotLambda e
 data Err =
   FunNotFound Text (Set Text)
   | VarNotFound Text (Set Text)
-  | Stall Expr
+  | StackOverflow
   | NotLambda Thunk
   | NotILit Thunk
   | NotBLit Thunk
@@ -59,3 +59,11 @@ type Log = [Text]
 
 -- | Eval is a constraint alias for a monad that combines Reader for the environment, Writer for logging, and Except for error handling.
 type Eval m = (MonadReader (Map Text Thunk) m, MonadWriter Log m, MonadError Err m)
+
+maxEnvSize :: Int
+maxEnvSize = 100
+
+testEnvForSize :: Eval m => m ()
+testEnvForSize = do
+  env <- ask
+  when (Map.size env > maxEnvSize) (throwError StackOverflow)

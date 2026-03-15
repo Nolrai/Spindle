@@ -318,12 +318,12 @@ unifyTests = testGroup "unify tests"
 algorithmWTests :: TestTree
 algorithmWTests = testGroup "algorithmW tests"
   [ testCase "literal infers Int" $
-      runHM (algorithmW Map.empty (ILit 42))
-        @?= Right (Map.empty, HMInt)
+      inferHMType (ILit 42)
+        @?= Right HMInt
 
   , testCase "bound variable instantiates from context" $
       runHM (algorithmW (Map.singleton "x" (mono HMInt)) (Var "x"))
-        @?= Right (Map.empty, HMInt)
+        @?= Right (HMInt, Map.empty)
 
   , testCase "unbound variable fails" $
       runHM (algorithmW Map.empty (Var "x"))
@@ -331,21 +331,21 @@ algorithmWTests = testGroup "algorithmW tests"
 
   , testCase "binary operator forces Int operands" $
       runHM (algorithmW Map.empty (BiOp (ArithOp Add) (ILit 1) (ILit 2)))
-        @?= Right (Map.empty, HMInt)
+        @?= Right (HMInt, Map.empty)
 
-  , testCase "conditional requires Int guard and matching branches" $
-      runHM (algorithmW Map.empty (Cond (ILit 0) (ILit 1) (ILit 2)))
-        @?= Right (Map.empty, HMInt)
+  , testCase "conditional requires Bool guard and matching branches" $
+      runHM (algorithmW Map.empty (Cond (BLit False) (ILit 1) (ILit 2)))
+        @?= Right (HMInt, Map.empty)
 
   , testCase "identity lambda infers a -> a" $
       runHM (algorithmW Map.empty (Lam ["x"] (Var "x")))
-        @?= Right (Map.empty, HMTyVar (-1) :-> HMTyVar (-1))
+        @?= Right (HMTyVar (-1) :-> HMTyVar (-1), Map.empty)
 
   , testCase "application specializes a lambda argument type" $
       runHM (algorithmW Map.empty (App (Lam ["x"] (Var "x")) [ILit 1]))
         @?= Right
-          ( Map.fromList [(-2, HMInt), (-1, HMInt)]
-          , HMInt
+          ( HMInt
+          , Map.fromList [(-2, HMInt), (-1, HMInt)]
           )
 
   , testCase "let generalization supports polymorphic reuse" $ do
@@ -354,7 +354,7 @@ algorithmWTests = testGroup "algorithmW tests"
               (Let "a" (App (Var "id") [ILit 1])
                 (App (Var "id") [Lam ["y"] (Var "y")]))
       case runHM (algorithmW Map.empty expr) of
-        Right (subst, argTy :-> resTy) ->
+        Right (argTy :-> resTy, subst) ->
           applySubst subst argTy @?= applySubst subst resTy
         result ->
           assertFailure $ "expected polymorphic let to infer an identity function, got: " ++ show result
@@ -363,7 +363,7 @@ algorithmWTests = testGroup "algorithmW tests"
       runHM (algorithmW Map.empty (App (ILit 1) [ILit 2]))
         @?= Left [IncompatibleTypes HMInt (HMInt :-> HMTyVar (-1))]
 
-  , testCase "conditional rejects non-Int guards" $
+  , testCase "conditional rejects non-Bool guards" $
       runHM (algorithmW Map.empty (Cond (Lam ["x"] (Var "x")) (ILit 1) (ILit 2)))
-        @?= Left [IncompatibleTypes (HMTyVar (-1) :-> HMTyVar (-1)) HMInt]
+        @?= Left [IncompatibleTypes (HMTyVar (-1) :-> HMTyVar (-1)) HMBool]
   ]

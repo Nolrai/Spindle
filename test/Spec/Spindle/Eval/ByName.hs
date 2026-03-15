@@ -11,6 +11,8 @@ import Data.Text (Text)
 import GHC.IsList (fromList)
 import Spindle.Eval.Common
 import Spec.Spindle.Eval.Common
+import Control.Monad.IO.Class (MonadIO(..))
+import System.Timeout (timeout)
 
 byNameTests :: TestTree
 byNameTests = testGroup "ByName evaluator Tests"
@@ -20,6 +22,7 @@ byNameTests = testGroup "ByName evaluator Tests"
   , boolExprTests
   , letTests
   , lamAppTests
+  , omegaTests
   ]
 
 -- The following test groups are adapted from the original Eval.hs
@@ -134,4 +137,21 @@ letTests = testGroup "let binding tests (ByName)"
   , evalTestCase "eval let binding with expression" "let x := 1 + 2 in x + 3" (Right (NILit 6))
   , evalTestCase "eval nested let bindings" "let x := 2 in let y := x + 3 in y * 2" (Right (NILit 10))
   , evalTestCase "eval let shadowing" "let x := 1 in let x := 2 in x + x" (Right (NILit 4))
+  ]
+
+omegaTests :: TestTree
+omegaTests = testGroup "test differences between byName and byValue (ByName)"
+  [ testCase "omega times out" $ do
+      r <- liftIO $ timeout 100000 $ do
+        Right !expr <- pure $ myParse myParser "omega" "let z := \\ y => y # y in let w := z # z in w"
+        case eval expr of
+          Left !value -> pure $ Left value
+          Right !value -> pure $ Right value
+      case r of
+        Nothing -> pure ()  -- success: it timed out
+        Just value  -> assertFailure $ "divergent computation returned value: " <> show value
+  , evalTestCase
+    "'(\\ x => 1) # omega' evaluates to 1 in call by name"
+    "let z := (\\y => y # y) in let omega := z # z in (\\ x => 1) # omega"
+    (Right (NILit 1))
   ]

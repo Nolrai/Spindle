@@ -11,10 +11,6 @@ import Control.Monad.Writer
 import Control.Monad.Reader (runReader)
 import Data.List as List
 import Spindle.Eval.Common
-import Control.Monad (when)
-
-maxEnvSize :: Int
-maxEnvSize = 100
 
 matchToLit' :: Eval m => Thunk -> m (Either Int Bool)
 matchToLit' (NILit n) = return $ Left n
@@ -44,11 +40,6 @@ matchClosure' (NClosure env [] body) = do
   local (const env) (toNormal body) >>= matchClosure'
 matchClosure' (NClosure env params body) = return (env, params, body)
 matchClosure' e = throwError $ NotLambda e
-
-testEnvForSize :: Eval m => m ()
-testEnvForSize = do
-  env <- ask
-  when (Map.size env > maxEnvSize) (throwError $ Stall (ILit (-1)) )
 
 -- | Binds a variable to a value in the environment, but the value is wrapped in a closure that captures the current environment. This allows for recursive definitions, as the variable can refer to itself within its own definition.
 bindVarRec :: Eval m => Text -> Expr -> m a -> m a
