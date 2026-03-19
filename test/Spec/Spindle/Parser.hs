@@ -107,7 +107,7 @@ constructorTests = testGroup "constructor tests"
       ?= Var "v"
   , testCase "Parse trivial let" $
     myParse myParser "let v := 2 in v" "let v := 2 in v"
-      ?= Let "v" (ILit 2) (Var "v")
+      ?= LetRec "v" (ILit 2) (Var "v")
   , testCase "Parse Lambda" $
     myParse myParser "lambda" "\\ x => x + 1"
       ?= Lam ["x"] (BiOp (ArithOp Add) (Var "x") (ILit 1))
@@ -184,4 +184,8 @@ lamAppTests = testGroup "lambda application tests"
     myParse myParser "lambda application with nested lambdas" "(  \\ x => \\ y => x + y) # 2 # 3" ?= App (Lam ["x"] (Lam ["y"] (BiOp (ArithOp Add) (Var "x") (Var "y")))) [ILit 2, ILit 3]
   , testCase "parse lambda application with excess arguments" $
     myParse myParser "lambda application with excess arguments" "(\\ x => x + 1) # 5 # 6" ?= App (Lam ["x"] (BiOp (ArithOp Add) (Var "x") (ILit 1))) [ILit 5, ILit 6]
+  , testCase "parse lambda application with excess parameters" $
+    myParse myParser "lambda application with excess parameters" "(\\ x y => x + y) # 2" ?= App (Lam ["x", "y"] (BiOp (ArithOp Add) (Var "x") (Var "y"))) [ILit 2]
+  , testCase "parse illtyped lambda" $
+    myParse myParser "ill-typed self recursion" "let f := (\\x => f # f) in f" ?= LetRec "f" (Lam ["x"] (App (Var "f") [Var "f"])) (Var "f")
   ]

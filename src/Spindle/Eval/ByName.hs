@@ -32,7 +32,7 @@ matchToBLit' (NBLit b) = return b
 matchToBLit' (NClosure env [] body) = do
   tell ["Evaluating closure for BLit: " <> Text.show body]
   local (const env) (toNormal body) >>= matchToBLit'
-matchToBLit' e = throwError $ NotBLit e
+matchToBLit' e = throwError $ NotILit e
 
 matchClosure' :: Eval m => Thunk -> m (Env, [Text], Expr )
 matchClosure' (NClosure env [] body) = do
@@ -41,9 +41,16 @@ matchClosure' (NClosure env [] body) = do
 matchClosure' (NClosure env params body) = return (env, params, body)
 matchClosure' e = throwError $ NotLambda e
 
+matchToPair' :: Eval m => Thunk -> m (Thunk, Thunk)
+matchToPair' (NPair a b) = pure (a, b)
+matchToPair' (NClosure env [] body) = do
+  tell ["Evaluating closure for BLit: " <> Text.show body]
+  local (const env) (toNormal body) >>= matchToPair'
+matchToPair' e = throwError $ NotStruct e
+
 -- | Binds a variable to a value in the environment, but the value is wrapped in a closure that captures the current environment. This allows for recursive definitions, as the variable can refer to itself within its own definition.
 bindVarRec :: Eval m => Text -> Expr -> m a -> m a
-bindVarRec var val action= do
+bindVarRec var val action = do
   env <- ask
   let
     env' = Map.insert var val' env
@@ -51,6 +58,12 @@ bindVarRec var val action= do
   tell ["Binding variable: " <> var <> " = " <> Text.show val']
 
   local (const env') (testEnvForSize >> action)
+
+-- non recrusive binding of a variable to a thunk, not an expr.
+bindVarThunk :: Eval m => Text -> Thunk -> m a -> m a
+bindVarThunk var val action = do
+  tell ["Binding variable: " <> var <> " = " <> Text.show val]
+  local (Map.insert var val) (testEnvForSize >> action)
 
 -- | Binds function arguments to their values in the environment, but the values are wrapped in closures that capture the current environment.
 bindArgs :: Eval m => Env -> [(Text, Expr)] -> m a -> m a
@@ -131,7 +144,14 @@ toNormal focus = do
       if c' then toNormal t else toNormal f
 
     -- For a let(rec) expression, bind the variable to a closure.
-    Let var val body -> bindVarRec var val (toNormal body)
+    LetRec var val body -> bindVarRec var val (toNormal body)
+
+    Destruct varA varB val body -> do
+      thunk1 <- toNormal val
+      (valA, valB) <- matchToPair' thunk1
+      bindVarThunk varA valA $
+        bindVarThunk varB valB $
+          toNormal body
   where
     runLogicOp And = (&&)
     runLogicOp Or = (||)

@@ -53,11 +53,17 @@ lamTerm = Lam
     <?> "lambda term"
 
 letTerm :: Parser Expr
-letTerm = Let
-  <$> (symbol "let" *> identifier)
-  <*> (symbol ":=" *> expr)
-  <*> (symbol "in" *> expr)
-  <?> "let term"
+letTerm = (<?> "let term") $ do
+  symbol "let" *> patternParser <*> (symbol ":=" *> expr) <*> (symbol "in" *> expr)
+
+-- its called this because pattern is a keyword in some dialects of haskell.
+-- right now this only parses single variables or pairs.
+patternParser :: Parser (Expr -> Expr -> Expr)
+patternParser = LetRec <$> identifier <|> letMPattern
+
+letMPattern :: Parser (Expr -> Expr -> Expr)
+letMPattern =
+  uncurry Destruct <$> parens ((,) <$> (identifier <* symbol ",") <*> identifier)
 
 identifier :: Parser Text
 identifier = lexeme ((:) <$> letterChar <*> many alphaNumChar) <&> pack

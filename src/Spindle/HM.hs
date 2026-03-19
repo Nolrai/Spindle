@@ -16,6 +16,7 @@ inferHMType expr = runHM $ do
   pure t
 
 infixr 0 :->
+infixl 0 :*:
 
 -- | Type variables are represented as integers, where negative integers are used for fresh type variables generated during inference.
 -- This allows us to easily generate new type variables by decrementing the state, and also ensures that they do not conflict with any user-defined type variables (which are represented as non-negative integers).
@@ -28,6 +29,7 @@ data HMType
   | HMBool
   | HMTyVar TyVar
   | HMType :-> HMType
+  | HMType :*: HMType
   deriving (Show, Eq, Ord)
 
 -- | TypeScheme represents a type scheme in the Hindley-Milner type system, which consists of a set of universally quantified type variables and a base type.
@@ -68,7 +70,9 @@ instance MonadFresh m => MonadFresh (StateT s m) where
 applySubst :: Subst -> HMType -> HMType
 applySubst subst  (HMTyVar v) = Map.findWithDefault (HMTyVar v) v subst
 applySubst subst  (t1 :-> t2) = applySubst subst t1 :-> applySubst subst t2
-applySubst _subst a       = a
+applySubst subst  (t1 :*: t2) = applySubst subst t1 :*: applySubst subst t2
+applySubst _ HMBool = HMBool
+applySubst _ HMInt = HMInt
 
 -- | Apply substitution to a type scheme, ensuring that bound variables are not substituted
 applySubstToScheme :: Subst -> TypeScheme -> TypeScheme
@@ -93,6 +97,7 @@ freeTypeVars HMInt = Set.empty
 freeTypeVars HMBool = Set.empty
 freeTypeVars (HMTyVar v) = Set.singleton v
 freeTypeVars (t1 :-> t2) = freeTypeVars t1 `Set.union` freeTypeVars t2
+freeTypeVars (t1 :*: t2) = freeTypeVars t1 `Set.union` freeTypeVars t2
 
 -- | Generalize a type by quantifying over all free type variables that are not in the context
 generalize :: Context -> HMType -> TypeScheme
@@ -132,6 +137,10 @@ unify HMBool HMBool = pure Map.empty
 unify (HMTyVar v) t = bindVar v t
 unify t (HMTyVar v) = bindVar v t
 unify (t1 :-> t2) (t3 :-> t4) = wrapError (WhileUnifying (t1 :-> t2) (t3 :-> t4)) $ do
+  s1 <- unify t1 t3
+  s2 <- unify (applySubst s1 t2) (applySubst s1 t4)
+  pure (s2 `o` s1)
+unify (t1 :*: t2) (t3 :*: t4) = wrapError (WhileUnifying (t1 :*: t2) (t3 :*: t4)) $ do
   s1 <- unify t1 t3
   s2 <- unify (applySubst s1 t2) (applySubst s1 t4)
   pure (s2 `o` s1)
@@ -243,12 +252,23 @@ algorithmW ctx (App f args) = encapsulate $ do
   _ <- unifyM t1 funcType
   applySubstM resultType
 
-algorithmW ctx (Let x e1 e2) = encapsulate $ do
+algorithmW ctx (LetRec x e1 e2) = encapsulate $ do
   t1 <- inferExpr ctx e1
   ctx' <- gets (`applySubstToContext` ctx)
   let generalizedType = generalize ctx' t1
       newCtx = Map.insert x generalizedType ctx'
   inferExpr newCtx e2
+
+algorithmW ctx (Destruct x y bindee body) = encapsulate $ do
+  xTyVar <- fresh
+  yTyVar <- fresh
+  _ <- unifyM (HMTyVar xTyVar :*: HMTyVar yTyVar) =<< inferExpr ctx bindee
+  ctx' <- gets (`applySubstToContext` ctx)
+  xTy <- applySubstM (HMTyVar xTyVar)
+  yTy <- applySubstM (HMTyVar yTyVar)
+  let newCtx = Map.fromList [(x, mono xTy), (y, mono yTy)] `Map.union` ctx'
+  inferExpr newCtx body
+
 
 runHM :: ExceptT [HMError] FreshM a -> Either [HMError] a
 runHM = runFreshM . runExceptT

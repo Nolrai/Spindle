@@ -8,7 +8,8 @@ data Expr
   | BiOp BiOp Expr Expr
   | UnOp UnOp Expr
   | Cond Expr Expr Expr
-  | Let Text Expr Expr
+  | LetRec Text Expr Expr
+  | Destruct Text Text Expr Expr
   | App Expr [Expr]
   | Lam [Text] Expr
   | Var Text

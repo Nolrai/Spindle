@@ -15,6 +15,9 @@ import Test.Tasty.Hedgehog
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 import Hedgehog.Gen (resize)
 import Data.Either (isRight)
+import Spec.Spindle.Parser (myParser)
+import Utils (myParse)
+import qualified Data.List as List
 
 toTyVar :: Size -> TyVar
 toTyVar = fromIntegral
@@ -42,15 +45,15 @@ genHMType =
   Gen.recursive Gen.choice
     [ genBase
     ]
-    [ (:->) <$> genHMType <*> genHMType
+    [ (:->) <$> genHMType <*> genHMType,
+      (:*:) <$> genHMType <*> genHMType
     ]
   where
     genBase = do
       n <- Gen.int (linear 0 5)
-      pure $
-        if n == 0
-        then HMInt
-        else HMTyVar $ fromIntegral (n - 1)
+      case [HMInt, HMBool] List.!? n of
+        Just t -> pure t
+        Nothing -> HMTyVar <$> genTyVar
 
 genTypeScheme :: Gen TypeScheme
 genTypeScheme = do
@@ -350,14 +353,40 @@ algorithmWTests = testGroup "algorithmW tests"
 
   , testCase "let generalization supports polymorphic reuse" $ do
       let expr =
-            Let "id" (Lam ["x"] (Var "x"))
-              (Let "a" (App (Var "id") [ILit 1])
+            LetRec "id" (Lam ["x"] (Var "x"))
+              (LetRec "a" (App (Var "id") [ILit 1])
                 (App (Var "id") [Lam ["y"] (Var "y")]))
       case runHM (algorithmW Map.empty expr) of
         Right (argTy :-> resTy, subst) ->
           applySubst subst argTy @?= applySubst subst resTy
         result ->
           assertFailure $ "expected polymorphic let to infer an identity function, got: " ++ show result
+
+  , testCase "let is recursive" $ do
+      let expr =
+            LetRec "f" (Lam ["x"] (Cond (Var "x") (ILit 1) (App (Var "f") [Var "x"])))
+              (Var "f")
+      case runHM (algorithmW Map.empty expr) of
+        Right (ty, subst) -> do
+          case applySubst subst ty of
+            argTy :-> resTy -> do
+              applySubst subst argTy @?= HMBool
+              applySubst subst resTy @?= HMInt
+            ty' -> assertFailure $ "expected recursive let to infer a function type, got: " ++ show ty'
+        result ->
+          assertFailure $ "expected recursive let to infer 'Bool -> Int', got: " ++ show result
+
+  , testCase "ill-typed self recursion is rejected" $ do
+      let exprP = myParse myParser "ill-typed self recursion" "let f := (\\x => f # f) in f"
+      expr <- case exprP of
+        Left err -> assertFailure $ "failed to parse test expression: " ++ show err
+        Right expr -> pure expr
+      case runHM (algorithmW Map.empty expr) of
+        Left (OccursCheckFailed _ _ : _) -> pure ()  -- success: occurs check failed
+        result ->
+          assertFailure
+            $ "expected ill-typed self recursion to fail with occurs check error, got: "
+            ++ show result
 
   , testCase "non-function application fails during unification" $
       runHM (algorithmW Map.empty (App (ILit 1) [ILit 2]))

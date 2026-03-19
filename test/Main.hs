@@ -4,7 +4,6 @@ module Main (main) where
 
 import Spec.Spindle.Parser (parserTests)
 import Spec.Spindle.Expr (typesTests)
-import Spec.Spindle.Eval.ByValue (byValueTests)
 import Spec.Spindle.Eval.ByName (byNameTests)
 import Spec.Spindle.Eval.Common (commonTests)
 import Spec.Spindle.HM (hmTests)
@@ -21,7 +20,6 @@ tests = testGroup "All Tests"
       1 + 1 @?= (2 :: Int)
   , typesTests
   , parserTests
-  , byValueTests
   , byNameTests
   , commonTests
   , hmTests

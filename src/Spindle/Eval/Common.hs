@@ -13,6 +13,8 @@ data Thunk
   = NBLit Bool
   | NILit Int
   | NClosure (Map Text Thunk) [Text] Expr
+  | NProj !Bool Env Expr
+  | NPair Thunk Thunk
   deriving (Eq)
 
 instance Show Thunk where
@@ -23,6 +25,11 @@ instance Show Thunk where
     "Closure " <> show (Map.toList $ void env)
       <> " " <> show params
       <> " (" <> show expr <> ")"
+  show (NPair a b) = show (a, b)
+  show (NProj b env expr) =
+    "pi " <> show (if b then (1 :: Int) else 0) <> " ("
+    <> show (Map.toList $ void env) <> "|"
+    <> show expr <> ")"
 
 type Env = Map Text Thunk
 
@@ -52,6 +59,7 @@ data Err =
   | NotILit Thunk
   | NotBLit Thunk
   | NotLit Thunk
+  | NotStruct Thunk
   deriving (Show, Eq)
 
 -- | Log is a list of Text messages that describe the evaluation process.
