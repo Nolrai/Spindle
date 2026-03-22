@@ -8,12 +8,11 @@ import Data.Map as Map
 import Data.Set
 import Control.Monad (void, when)
 
--- | Values is the result of evaluating an expression. It can be a literal, or a lambda. In future versions, it will also include closures for functions.
+-- | A 'Thunk' represents a delayed computation or a value that can be evaluated to normal form. It can be a boolean literal, an integer literal, a closure (which captures an environment and a function body), or a pair of thunks.
 data Thunk
   = NBLit Bool
   | NILit Int
   | NClosure (Map Text Thunk) [Text] Expr
-  | NProj !Bool Env Expr
   | NPair Thunk Thunk
   deriving (Eq)
 
@@ -26,10 +25,6 @@ instance Show Thunk where
       <> " " <> show params
       <> " (" <> show expr <> ")"
   show (NPair a b) = show (a, b)
-  show (NProj b env expr) =
-    "pi " <> show (if b then (1 :: Int) else 0) <> " ("
-    <> show (Map.toList $ void env) <> "|"
-    <> show expr <> ")"
 
 type Env = Map Text Thunk
 

@@ -126,6 +126,9 @@ toNormal focus = do
           Right b1 -> do
             b2 <- matchToBLit' e2'
             return $ runOrdOp op b1 b2
+    BiOp (PairOp Pair) e1 e2 -> do
+      tell ["Making pair thunk"]
+      NPair <$> toThunk e1 <*> toThunk e2
 
     -- For a unary operation, we first evaluate the operand to normal form, and then apply the operation. If the operand is not a literal, we throw an error.
     UnOp (ArithUn op) e -> do
@@ -173,6 +176,9 @@ toNormal focus = do
     runArithUn Neg = negate
     runArithUn Inc = (+ 1)
     runArithUn Dec = \ x -> x - 1
+
+    toThunk :: Eval m => Expr -> m Thunk
+    toThunk e = asks $ \env -> NClosure env [] e
 
 evalApp :: Eval m => Thunk -> [Expr] -> m Thunk
 evalApp fun args = do
