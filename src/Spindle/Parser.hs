@@ -37,8 +37,7 @@ expr :: Parser Expr
 expr = makeExprParser term table <?> "expression"
 
 term :: Parser Expr
-term =
-  parens (try expr)
+term = parens expr
   <|> letTerm
   <|> boolean
   <|> lamTerm
@@ -93,6 +92,7 @@ table = [ [ binary "#" toApp ] -- application has the highest precedence
           , binary "||" (BiOp (LogicOp Or))  -- logical OR
           ]
         , [ ternary "?" ":" Cond ]
+        , [ binary "," (BiOp (PairOp Pair)) ]
         ]
 
 toApp :: Expr -> Expr -> Expr

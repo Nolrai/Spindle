@@ -3,7 +3,7 @@
 module Main (main) where
 
 import Spec.Spindle.Parser (parserTests)
-import Spec.Spindle.Expr (typesTests)
+import Spec.Spindle.Expr (exprTests)
 import Spec.Spindle.Eval.ByName (byNameTests)
 import Spec.Spindle.Eval.Common (commonTests)
 import Spec.Spindle.HM (hmTests)
@@ -18,7 +18,7 @@ tests :: TestTree
 tests = testGroup "All Tests"
   [ testCase "Example test" $
       1 + 1 @?= (2 :: Int)
-  , typesTests
+  , exprTests
   , parserTests
   , byNameTests
   , commonTests

@@ -198,6 +198,7 @@ algorithmW ctx (BiOp op e1 e2) = encapsulate $ do
         ArithOp _ -> HMInt :-> HMInt :-> HMInt
         LogicOp _ -> HMBool :-> HMBool :-> HMBool
         OrderOp _ -> HMTyVar v1 :-> HMTyVar v1 :-> HMBool
+        PairOp Pair -> t1 :-> t2 :-> (t1 :*: t2)
 
   -- we use a fresh type variable for the result type of the operator, which allows us to unify it with the expected result type (e.g. HMInt for arithmetic operators) while still allowing for polymorphism in the operand types (e.g. OrderOp can work on any type as long as both operands are the same)
   v2 <- fresh
@@ -231,6 +232,7 @@ algorithmW ctx (Var x) = encapsulate $ do
     Nothing -> throwError [UnboundVariable x]
     Just scheme -> instantiate scheme
 
+-- lambdas: generate fresh type variables for parameters, extend the context with these variables, infer the type of the body, and construct the function type from the parameter types to the body type
 algorithmW ctx (Lam x body) = encapsulate $ do
   vars <- traverse (const fresh) x
 
@@ -244,6 +246,7 @@ algorithmW ctx (Lam x body) = encapsulate $ do
   let lamTy = List.foldr (\v acc -> HMTyVar v :-> acc) t1 vars
   applySubstM lamTy
 
+-- applications: infer the type of the function and the types of the arguments, generate a fresh type variable for the result, unify the function type with a function type from the argument types to the result type, and return the result type
 algorithmW ctx (App f args) = encapsulate $ do
   t1 <- inferExpr ctx f
   argTypes <- traverse (inferExpr ctx) args
@@ -252,6 +255,7 @@ algorithmW ctx (App f args) = encapsulate $ do
   _ <- unifyM t1 funcType
   applySubstM resultType
 
+-- letrec: generate a fresh type variable for the recursive function, extend the context with this variable, infer the type of the function body, unify it with the fresh variable to ensure it matches the expected type, generalize the inferred type and extend the context for the body of the letrec, and infer the type of the body
 algorithmW ctx (LetRec x e1 e2) = encapsulate $ do
   xTyVar <- fresh
   let recCtx = Map.insert x (monoVar xTyVar) ctx
