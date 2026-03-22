@@ -253,11 +253,11 @@ algorithmW ctx (App f args) = encapsulate $ do
   applySubstM resultType
 
 algorithmW ctx (LetRec x e1 e2) = encapsulate $ do
-  t1 <- inferExpr ctx e1
-  ctx' <- gets (`applySubstToContext` ctx)
-  let generalizedType = generalize ctx' t1
-      newCtx = Map.insert x generalizedType ctx'
-  inferExpr newCtx e2
+  xTyVar <- fresh
+  let recCtx = Map.insert x (monoVar xTyVar) ctx
+  t1 <- generalize recCtx <$> inferExpr recCtx e1
+  -- this witll overwrite the recursive binding with the generalized type, which allows for polymorphic recursion if needed
+  inferExpr (Map.insert x t1 ctx) e2
 
 algorithmW ctx (Destruct x y bindee body) = encapsulate $ do
   xTyVar <- fresh
