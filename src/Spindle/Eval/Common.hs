@@ -21,7 +21,7 @@ instance Show Thunk where
   show (NBLit b) = Prelude.show b
   show (NILit n) = Prelude.show n
   show (NClosure env params expr) =
-    "Closure " <> show (Map.toList $ void env)
+    "NClosure " <> show (Map.toList $ void env)
       <> " " <> show params
       <> " (" <> show expr <> ")"
   show (NPair a b) = show (a, b)

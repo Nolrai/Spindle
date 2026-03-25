@@ -2,5 +2,5 @@ let x := 10 in
 let y := 2 in
 let pair := (T, x + y) in
 let (flag, sum) := pair in
-let f := \a b => if flag && (a > b) then a * sum else b * sum in
+let f := \a b => flag && (a > b) ? a * sum : b * sum in
 f (x + 1) (y * 3)

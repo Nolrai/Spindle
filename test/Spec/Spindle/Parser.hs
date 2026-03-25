@@ -188,4 +188,20 @@ lamAppTests = testGroup "lambda application tests"
     myParse myParser "lambda application with excess parameters" "(\\ x y => x + y) # 2" ?= App (Lam ["x", "y"] (BiOp (ArithOp Add) (Var "x") (Var "y"))) [ILit 2]
   , testCase "parse illtyped lambda" $
     myParse myParser "ill-typed self recursion" "let f := (\\x => f # f) in f" ?= LetRec "f" (Lam ["x"] (App (Var "f") [Var "f"])) (Var "f")
+  , testCase "lack of # should cause parse failure" $
+      case myParse myParser "f 1 2" "f 1 2" of
+        Left _ -> pure ()
+        Right _ -> assertFailure "expected parse failure"
+    , testCase "lack of # should cause parse failure even with parens" $
+      case myParse myParser "f (1 + 1) (2 * 2)" "f (1 + 1) (2 * 2)" of
+        Left _ -> pure ()
+        Right _ -> assertFailure "expected parse failure"
+    , testCase "example.spindle" $ do
+        x <- myParseFile myParser "test/data/example.spindle"
+        x ?=  LetRec "x" (ILit 10) (LetRec "y" (ILit 2) (LetRec "pair" (BiOp (PairOp Pair) (BLit True) (BiOp (ArithOp Add) (Var "x") (Var "y"))) (Destruct "flag" "sum" (Var "pair") (LetRec "f" (Lam ["a","b"] (Cond (BiOp (LogicOp And) (Var "flag") (BiOp (OrderOp Gt) (Var "a") (Var "b"))) (BiOp (ArithOp Mul) (Var "a") (Var "sum")) (BiOp (ArithOp Mul) (Var "b") (Var "sum")))) (App (Var "f") [BiOp (ArithOp Add) (Var "x") (ILit 1),BiOp (ArithOp Mul) (Var "y") (ILit 3)])))))
+    , testCase "should_fail_parse.spindle" $ do
+        x <- myParseFile myParser "test/data/example.spindle"
+        case x of
+          Right expr' -> assertFailure $ "should fail to parse, got : " ++ show expr'
+          Left _ -> pure ()
   ]

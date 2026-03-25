@@ -3,6 +3,7 @@ module Utils where
 import Text.Megaparsec
 import Spindle.Parser
 import Data.Text as Text
+import Data.Text.IO as Text
 import Test.Tasty.HUnit
 import GHC.Stack
 
@@ -17,3 +18,8 @@ result ?= expected =  withFrozenCallStack $
   case result of
     Left err -> assertFailure err
     Right val -> val @?= expected
+
+myParseFile :: Parser a -> FilePath -> IO (Either String a)
+myParseFile p fileName = do
+  fileContents <- Text.readFile fileName
+  pure $ myParse p fileName fileContents
