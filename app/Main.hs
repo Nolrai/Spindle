@@ -5,7 +5,7 @@ import System.Environment (getArgs)
 import Spindle.Parser (expr)
 import Spindle.HM (inferHMType)
 import Spindle.Eval.ByName (eval)
-import Text.Megaparsec (parse, errorBundlePretty)
+import Text.Megaparsec (parse, errorBundlePretty, eof)
 import System.Exit (exitFailure)
 
 main :: IO ()
@@ -14,7 +14,7 @@ main = do
   input <- case args of
     [] -> T.getContents
     (file:_) -> T.readFile file
-  case parse expr "<stdin>" input of
+  case parse (expr <* eof) "<stdin>" input of
     Left err -> do
       putStrLn $ "Parse error: " ++ errorBundlePretty err
       exitFailure
